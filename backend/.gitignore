@@ -1,0 +1,8 @@
+node_modules
+dist
+# Keep environment variables out of version control
+.env
+# Compiled seed artifacts
+prisma/*.js
+prisma/*.d.ts
+prisma/*.js.map

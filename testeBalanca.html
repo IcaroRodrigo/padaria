@@ -1,0 +1,138 @@
+  <!DOCTYPE html>                                                                                                                                                                            
+  <html lang="pt-BR">                                                                                                                                                                        
+  <head>                                                                                                                                                                                     
+  <meta charset="UTF-8">                                                                                                                                                                     
+  <title>Simulador de Balança — Casa Granella</title>                                                                                                                                      
+  <style>                                                                                                                                                                                    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f0e8; color: #1a1a1a; min-height: 100vh; display: flex; align-items: center; justify-content: center; }                        
+    .card { background: white; border-radius: 12px; padding: 32px; width: 420px; box-shadow: 0 4px 24px rgba(0,0,0,.1); }                                                                    
+    h1 { color: #4a7c2f; font-size: 1.3rem; margin-bottom: 4px; }                                                                                                                            
+    p.sub { color: #888; font-size: .85rem; margin-bottom: 24px; }                                                                                                                           
+    label { display: block; font-size: .85rem; font-weight: 600; color: #555; margin-bottom: 6px; }                                                                                          
+    input, select { width: 100%; padding: 10px 12px; border: 1.5px solid #ddd; border-radius: 8px; font-size: 1rem; margin-bottom: 16px; outline: none; }                                    
+    input:focus, select:focus { border-color: #4a7c2f; }                                                                                                                                     
+    .row { display: flex; gap: 12px; }                                                                                                                                                       
+    .row > div { flex: 1; }                                                                                                                                                                  
+    .barcode-box { background: #f5f0e8; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+    .barcode-box span { display: block; font-size: .75rem; color: #888; margin-bottom: 4px; }                                                                                                
+    .barcode-val { font-size: 1.6rem; font-family: monospace; font-weight: 700; color: #4a7c2f; letter-spacing: 3px; }                                                                       
+    .info { font-size: .82rem; color: #666; margin-top: 6px; }                                                                                                                               
+    button { width: 100%; padding: 13px; background: #4a7c2f; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background     
+  .15s; }                                                                                                                                                                                    
+    button:hover { background: #3a6022; }                                                                                                                                                    
+    button:disabled { background: #aaa; cursor: default; }                                                                                                                                   
+    .success { background: #f0faf0; border: 1.5px solid #4a7c2f; border-radius: 8px; padding: 12px 14px; margin-top: 16px; font-size: .9rem; color: #2d5c1a; display: none; }                
+    .notice { font-size: .78rem; color: #c49a3c; margin-top: 12px; text-align: center; }                                                                                                     
+  </style>                                                                                                                                                                                   
+  </head>                                                                                                                                                                                    
+  <body>                                                                                                                                                                                     
+  <div class="card">                       
+    <h1>⚖ Simulador de Balança</h1>
+    <p class="sub">Gera etiqueta EAN-13 padrão Toledo/Filizola para o PDV</p>                                                                                                                
+                                                                                                                                                                                             
+    <label>Formato da balança</label>                                                                                                                                                        
+    <select id="format" onchange="generate()">                                                                                                                                               
+      <option value="price">Preço (centavos nos últimos 5 dígitos)</option>                                                                                                                  
+      <option value="weight">Peso (gramas nos últimos 5 dígitos)</option>                                                                                                                    
+    </select>
+                                                                                                                                                                                             
+    <div class="row">                                                                                                                                                                        
+      <div>
+        <label>PLU do produto</label>                                                                                                                                                        
+        <input type="number" id="plu" value="1" min="1" max="99999" oninput="generate()" placeholder="ex: 1" />
+      </div>                                                                                                                                                                                 
+      <div id="field-price-wrap">
+        <label>Preço total (R$)</label>                                                                                                                                                      
+        <input type="number" id="price" value="4.65" step="0.01" min="0.01" max="999.99" oninput="generate()" placeholder="ex: 4.65" />                                                      
+      </div>                                                                                                                                                                                 
+      <div id="field-weight-wrap" style="display:none">                                                                                                                                      
+        <label>Peso (kg)</label>                                                                                                                                                             
+        <input type="number" id="weight" value="0.250" step="0.001" min="0.001" max="99.999" oninput="generate()" placeholder="ex: 0.250" />
+      </div>                                                                                                                                                                                 
+    </div>                                                                                                                                                                                 
+                                                                                                                                                                                             
+    <div class="barcode-box">              
+      <span>Código EAN-13 gerado</span>                                                                                                                                                      
+      <div class="barcode-val" id="barcode">—</div>
+      <div class="info" id="info"></div>                                                                                                                                                   
+    </div>                                                                                                                                                                                   
+                                                                                                                                                                                             
+    <button id="btn-send" onclick="sendToPDV()">Enviar para o PDV (localhost:3000)</button>                                                                                                  
+                                                                                                                                                                                             
+    <div class="success" id="success">                                                                                                                                                       
+      ✓ Código enviado! Verifique o PDV.                                                                                                                                                   
+    </div>                                                                                                                                                                                   
+                                           
+    <p class="notice">O PDV precisa estar aberto em localhost:3000/pdv com o campo de busca focado.</p>                                                                                      
+  </div>                                                                                                                                                                                     
+                                                                                                                                                                                             
+  <script>                                                                                                                                                                                   
+  // Calcula dígito verificador EAN-13                                                                                                                                                       
+  function ean13check(digits12) {          
+    let sum = 0                                                                                                                                                                            
+    for (let i = 0; i < 12; i++) {                                                                                                                                                           
+      sum += parseInt(digits12[i]) * (i % 2 === 0 ? 1 : 3)                                                                                                                                   
+    }                                                                                                                                                                                        
+    return (10 - (sum % 10)) % 10                                                                                                                                                            
+  }                                                                                                                                                                                          
+                                  
+  function generate() {                                                                                                                                                                      
+    const format = document.getElementById('format').value
+    const plu = parseInt(document.getElementById('plu').value) || 0
+    const priceVal = parseFloat(document.getElementById('price').value) || 0
+    const weightVal = parseFloat(document.getElementById('weight').value) || 0                                                                                                             
+                                                                                                                                                                                             
+    // Mostra/oculta campos                                                                                                                                                                
+    document.getElementById('field-price-wrap').style.display = format === 'price' ? '' : 'none'                                                                                             
+    document.getElementById('field-weight-wrap').style.display = format === 'weight' ? '' : 'none'
+                                                                                                                                                                                             
+    const pluStr = String(plu).padStart(5, '0')                                                                                                                                              
+                                                                                                                                                                                           
+    let valueInt, valueStr, infoText                                                                                                                                                         
+                                                                                                                                                                                           
+    if (format === 'price') {                                                                                                                                                                
+      valueInt = Math.round(priceVal * 100) // R$ → centavos
+      if (valueInt > 99999) { document.getElementById('barcode').textContent = 'Preço máximo R$ 999,99'; return }                                                                            
+      valueStr = String(valueInt).padStart(5, '0')                                                                                                                                         
+      infoText = `PLU ${plu} · R$ ${priceVal.toFixed(2)}`                                                                                                                                    
+    } else {                                                                                                                                                                                 
+      valueInt = Math.round(weightVal * 1000) // kg → gramas                                                                                                                                 
+      if (valueInt > 99999) { document.getElementById('barcode').textContent = 'Peso máximo 99,999 kg'; return }                                                                             
+      valueStr = String(valueInt).padStart(5, '0')
+      infoText = `PLU ${plu} · ${weightVal.toFixed(3)} kg`                                                                                                                                   
+    }                                                                                                                                                                                        
+                                                                                                                                                                                           
+    const partial = '2' + pluStr + valueStr                                                                                                                                                  
+    const check = ean13check(partial)                                                                                                                                                      
+    const barcode = partial + check                                                                                                                                                          
+                                           
+    document.getElementById('barcode').textContent = barcode                                                                                                                                 
+    document.getElementById('info').textContent = infoText
+    document.getElementById('btn-send').disabled = false
+    return barcode                                                                                                                                                                         
+  }                                                                                                                                                                                          
+                                  
+  function sendToPDV() {                                                                                                                                                                     
+    const barcode = document.getElementById('barcode').textContent
+    if (!barcode || barcode === '—') return
+                                                                                                                                                                                           
+    // Abre o PDV e injeta o código via BroadcastChannel (mesma origem)                                                                                                                      
+    const pdvUrl = 'http://localhost:3000/pdv'                                                                                                                                             
+                                                                                                                                                                                             
+    // Tenta BroadcastChannel (funciona se PDV já estiver aberto na mesma origem)                                                                                                          
+    const ch = new BroadcastChannel('scale_barcode')                                                                                                                                         
+    ch.postMessage({ barcode })                                                                                                                                                              
+    ch.close()                                                                                                                                                                               
+                                                                                                                                                                                             
+    // Exibe feedback                                                                                                                                                                        
+    const el = document.getElementById('success')
+    el.style.display = 'block'                                                                                                                                                               
+    setTimeout(() => el.style.display = 'none', 3000)
+  }                                                                                                                                                                                        
+                                                                                                                                                                                             
+  // Inicializa                   
+  generate()                                                                                                                                                                                 
+  </script>                                
+  </body>
+  </html>

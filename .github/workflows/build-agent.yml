@@ -1,0 +1,45 @@
+name: Build agent_impressora.exe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agente_impressora.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install pyinstaller pyserial
+
+      - name: Build exe
+        run: pyinstaller --onefile --noconsole --name agent_impressora agente_impressora.py
+
+      - name: Move to backend/static
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path backend/static | Out-Null
+          Copy-Item dist/agent_impressora.exe backend/static/agent_impressora.exe -Force
+
+      - name: Commit and push
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add backend/static/agent_impressora.exe
+          git diff --staged --quiet && echo "Sem alteracoes" || git commit -m "build: atualiza agent_impressora.exe [skip ci]"
+          git push

@@ -1,0 +1,334 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── EMPRESA (tenant) ────────────────────────────────────────────────────────
+
+model Empresa {
+  id                  Int       @id @default(autoincrement())
+  nome                String
+  email               String    @unique
+  cnpj                String?
+  telefone            String?
+  ativo               Boolean   @default(true)
+  trialExpiraEm       DateTime
+  assinaturaExpiraEm  DateTime?
+  criadaEm            DateTime  @default(now())
+
+  users               User[]
+  products            Product[]
+  categories          Category[]
+  suppliers           Supplier[]
+  customers           Customer[]
+  cashRegisters       CashRegister[]
+  sales               Sale[]
+  expenses            Expense[]
+  expenseCategories   ExpenseCategory[]
+  settings            Setting[]
+  stockEntries        StockEntry[]
+  solicitacoes        SolicitacaoAssinatura[]
+}
+
+model SolicitacaoAssinatura {
+  id             Int                   @id @default(autoincrement())
+  empresaId      Int
+  empresa        Empresa               @relation(fields: [empresaId], references: [id])
+  status         StatusSolicitacao     @default(PENDENTE)
+  comprovanteUrl String?               @db.Text
+  valorPago      Decimal?              @db.Decimal(10, 2)
+  criadoEm       DateTime             @default(now())
+  processadoEm   DateTime?
+  processadoPor  Int?
+}
+
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
+model TokenResetSenha {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  email     String
+  expiresAt DateTime
+  usado     Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+}
+
+model CodigoVerificacao {
+  id        Int      @id @default(autoincrement())
+  email     String
+  codigo    String   @db.VarChar(6)
+  expiraEm  DateTime
+  usado     Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+
+  @@index([email])
+}
+
+// ─── USUÁRIOS ────────────────────────────────────────────────────────────────
+
+model User {
+  id             Int            @id @default(autoincrement())
+  name           String
+  email          String         @unique
+  password       String
+  role           Role           @default(OPERATOR)
+  active         Boolean        @default(true)
+  empresaId      Int?
+  empresa        Empresa?       @relation(fields: [empresaId], references: [id])
+  createdAt      DateTime       @default(now())
+  sales          Sale[]
+  cashRegisters  CashRegister[]
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  OPERATOR
+}
+
+// ─── PRODUTOS ────────────────────────────────────────────────────────────────
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String
+  empresaId Int
+  empresa   Empresa   @relation(fields: [empresaId], references: [id])
+  products  Product[]
+}
+
+model Product {
+  id             Int        @id @default(autoincrement())
+  name           String
+  description    String?    @db.Text
+  categoryId     Int
+  category       Category   @relation(fields: [categoryId], references: [id])
+  empresaId      Int
+  empresa        Empresa    @relation(fields: [empresaId], references: [id])
+  unit           String
+  costPrice      Decimal    @db.Decimal(10, 2)
+  salePrice      Decimal    @db.Decimal(10, 2)
+  barcode        String?    @unique
+  plu            Int?       @unique
+  supplierId     Int?
+  supplier       Supplier?  @relation(fields: [supplierId], references: [id])
+  expirationDate DateTime?
+  active         Boolean    @default(true)
+  stockQty       Decimal?   @db.Decimal(10, 3)
+  minStockQty    Decimal?   @db.Decimal(10, 3)
+  createdAt      DateTime   @default(now())
+  saleItems      SaleItem[]
+  stockEntries   StockEntry[]
+}
+
+// ─── CLIENTES & FORNECEDORES ──────────────────────────────────────────────────
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  cpf       String?  @unique
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?  @db.Text
+  empresaId Int
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  createdAt DateTime @default(now())
+  sales     Sale[]
+}
+
+model Supplier {
+  id           Int          @id @default(autoincrement())
+  companyName  String
+  tradeName    String?
+  cnpj         String?      @unique
+  phone        String?
+  email        String?
+  address      String?
+  deliveryDays Int?
+  notes        String?
+  empresaId    Int
+  empresa      Empresa      @relation(fields: [empresaId], references: [id])
+  products     Product[]
+  stockEntries StockEntry[]
+  createdAt    DateTime     @default(now())
+}
+
+// ─── CONFIGURAÇÕES ────────────────────────────────────────────────────────────
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String
+  value     String   @db.Text
+  empresaId Int
+  empresa   Empresa  @relation(fields: [empresaId], references: [id])
+  updatedAt DateTime @updatedAt
+
+  @@unique([empresaId, key])
+}
+
+model SystemConfig {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// ─── CAIXA & VENDAS ───────────────────────────────────────────────────────────
+
+model CashRegister {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  user            User      @relation(fields: [userId], references: [id])
+  empresaId       Int
+  empresa         Empresa   @relation(fields: [empresaId], references: [id])
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+  openingBalance  Decimal   @db.Decimal(10, 2)
+  closingBalance  Decimal?  @db.Decimal(10, 2)
+  sales           Sale[]
+  fiscalNotes     FiscalNote[]
+}
+
+model Sale {
+  id             Int           @id @default(autoincrement())
+  customerId     Int?
+  customer       Customer?     @relation(fields: [customerId], references: [id])
+  userId         Int
+  user           User          @relation(fields: [userId], references: [id])
+  cashRegisterId Int
+  cashRegister   CashRegister  @relation(fields: [cashRegisterId], references: [id])
+  empresaId      Int
+  empresa        Empresa       @relation(fields: [empresaId], references: [id])
+  totalAmount    Decimal       @db.Decimal(10, 2)
+  discount       Decimal       @default(0) @db.Decimal(10, 2)
+  finalAmount    Decimal       @db.Decimal(10, 2)
+  paymentMethod  String
+  amountPaid     Decimal?      @db.Decimal(10, 2)
+  change         Decimal?      @db.Decimal(10, 2)
+  status         SaleStatus    @default(COMPLETED)
+  cancelReason   String?       @db.Text
+  createdAt      DateTime      @default(now())
+  items          SaleItem[]
+  payments       SalePayment[]
+  fiscalNote     FiscalNote?
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELLED
+}
+
+model SaleItem {
+  id        Int     @id @default(autoincrement())
+  saleId    Int
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Decimal @db.Decimal(10, 3)
+  unitPrice Decimal @db.Decimal(10, 2)
+  discount  Decimal @default(0) @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+}
+
+model SalePayment {
+  id     Int     @id @default(autoincrement())
+  saleId Int
+  sale   Sale    @relation(fields: [saleId], references: [id])
+  method String
+  amount Decimal @db.Decimal(10, 2)
+}
+
+// ─── DESPESAS ─────────────────────────────────────────────────────────────────
+
+model ExpenseCategory {
+  id        Int       @id @default(autoincrement())
+  name      String
+  empresaId Int
+  empresa   Empresa   @relation(fields: [empresaId], references: [id])
+  expenses  Expense[]
+}
+
+model Expense {
+  id                Int             @id @default(autoincrement())
+  description       String
+  amount            Decimal         @db.Decimal(10, 2)
+  categoryId        Int
+  category          ExpenseCategory @relation(fields: [categoryId], references: [id])
+  empresaId         Int
+  empresa           Empresa         @relation(fields: [empresaId], references: [id])
+  type              ExpenseType
+  status            ExpenseStatus   @default(PENDING)
+  dueDate           DateTime?
+  paidAt            DateTime?
+  notes             String?         @db.Text
+  recurrenceDay     Int?
+  generatedFromId   Int?
+  generatedFrom     Expense?        @relation("RecurringTemplate", fields: [generatedFromId], references: [id], onDelete: SetNull)
+  generatedExpenses Expense[]       @relation("RecurringTemplate")
+  createdAt         DateTime        @default(now())
+}
+
+enum ExpenseType {
+  FIXED
+  VARIABLE
+}
+
+enum ExpenseStatus {
+  PENDING
+  PAID
+}
+
+// ─── NOTA FISCAL ──────────────────────────────────────────────────────────────
+
+model FiscalNote {
+  id              Int               @id @default(autoincrement())
+  saleId          Int?              @unique
+  sale            Sale?             @relation(fields: [saleId], references: [id])
+  cashRegisterId  Int?
+  cashRegister    CashRegister?     @relation(fields: [cashRegisterId], references: [id])
+  ref             String            @unique
+  cpfDestinatario String?
+  status          FiscalNoteStatus  @default(PROCESSING)
+  chaveAcesso     String?
+  nsu             String?
+  numeroNota      Int?
+  serie           String?
+  danfeUrl        String?           @db.Text
+  qrcodeUrl       String?           @db.Text
+  errorMessage    String?           @db.Text
+  ambiente        String            @default("homologacao")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+enum FiscalNoteStatus {
+  PROCESSING
+  AUTHORIZED
+  DENIED
+  CANCELLED
+  ERROR
+}
+
+// ─── ESTOQUE ──────────────────────────────────────────────────────────────────
+
+model StockEntry {
+  id         Int       @id @default(autoincrement())
+  productId  Int
+  product    Product   @relation(fields: [productId], references: [id])
+  empresaId  Int
+  empresa    Empresa   @relation(fields: [empresaId], references: [id])
+  quantity   Decimal   @db.Decimal(10, 3)
+  unitCost   Decimal   @db.Decimal(10, 2)
+  totalCost  Decimal   @db.Decimal(10, 2)
+  supplierId Int?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id])
+  notes      String?   @db.Text
+  createdAt  DateTime  @default(now())
+}
