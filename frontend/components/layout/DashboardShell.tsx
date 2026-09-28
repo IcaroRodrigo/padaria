@@ -13,19 +13,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
       {/* Mobile top bar */}
-      <header className="md:hidden fixed top-0 inset-x-0 z-30 h-14 bg-primary-dark flex items-center gap-3 px-4">
+      <header className="md:hidden fixed top-0 inset-x-0 z-30 h-14 bg-primary-dark flex items-center gap-3 px-4 border-b border-[#493329]/20">
         <button
           onClick={() => setSidebarOpen(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition"
+          className="w-9 h-9 flex items-center justify-center rounded-lg text-[#493329]/70 hover:text-[#493329] hover:bg-[#493329]/10 transition"
           aria-label="Abrir menu"
         >
           <Menu size={20} />
         </button>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-white/10 rounded-lg flex items-center justify-center">
+          <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
             <Cookie className="w-4 h-4 text-white" />
           </div>
-          <span className="text-white font-bold text-sm">{user?.empresaNome ?? 'Panificadora'}</span>
+          <span className="text-[#493329] font-bold text-sm">{user?.empresaNome ?? 'Panificadora'}</span>
         </div>
       </header>
 

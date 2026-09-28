@@ -36,7 +36,7 @@ function getBannerStyle(status: EmpresaStatus, diasRestantes?: number) {
       }
     }
     return {
-      className: 'bg-[#4a7c2f] text-white',
+      className: 'bg-[#F6E7D5] text-[#493329]',
       message: `Trial ativo: ${diasRestantes ?? '?'} dias restantes.`,
     }
   }
@@ -89,13 +89,13 @@ export function TrialBanner() {
         <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={() => setShowModal(true)}
-            className="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition border border-white/30"
+            className="bg-[#9B5529] hover:bg-[#B8662D] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition"
           >
             Assinar agora
           </button>
           <button
             onClick={() => setDismissed(true)}
-            className="p-1 hover:bg-white/20 rounded transition"
+            className="p-1 hover:bg-[#493329]/10 rounded transition"
             aria-label="Fechar aviso"
           >
             <X className="w-3.5 h-3.5" />

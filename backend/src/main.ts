@@ -35,6 +35,6 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port, '0.0.0.0');
-  console.log(`Casa Granella API rodando em http://0.0.0.0:${port}/api`);
+  console.log(`Panificadora API rodando em http://0.0.0.0:${port}/api`);
 }
 bootstrap();

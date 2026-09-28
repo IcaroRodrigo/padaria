@@ -85,10 +85,10 @@ function TicketMedioCard({ overview }: { overview: any }) {
         <div className="flex flex-col items-end gap-1.5">
           <button
             onClick={() => setOpen((v) => !v)}
-            className="p-2 rounded-xl bg-golden/10 hover:bg-golden/20 transition-colors"
+            className="p-2 rounded-xl bg-primary/10 hover:bg-primary/20 transition-colors"
             title="Selecionar período"
           >
-            <Calendar className="w-5 h-5 text-golden" />
+            <Calendar className="w-5 h-5 text-primary" />
           </button>
         </div>
       </div>
