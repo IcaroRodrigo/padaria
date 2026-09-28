@@ -1,5 +1,5 @@
 {
-  "name": "casagranella-e2e",
+  "name": "panificadora-e2e",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -11,6 +11,12 @@
     "test:cadastro": "playwright test tests/produtos/cadastro.spec.ts",
     "test:edicao": "playwright test tests/produtos/edicao.spec.ts",
     "test:listagem": "playwright test tests/produtos/listagem.spec.ts",
+    "test:pdv": "playwright test tests/pdv",
+    "test:clientes": "playwright test tests/clientes",
+    "test:fornecedores": "playwright test tests/fornecedores",
+    "test:despesas": "playwright test tests/despesas",
+    "test:relatorios": "playwright test tests/relatorios",
+    "test:jornada": "playwright test tests/fluxo-completo/jornada-completa.spec.ts",
     "report": "playwright show-report"
   },
   "devDependencies": {

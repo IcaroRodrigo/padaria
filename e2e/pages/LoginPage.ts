@@ -15,13 +15,13 @@ export class LoginPage {
 
   async loginAsAdmin() {
     await this.goto()
-    await this.login('admin@casagranella.com', 'admin123')
+    await this.login('admin@panificadora.com', 'Admin@123')
     await this.page.waitForURL('**/dashboard')
   }
 
   async loginAsCaixa() {
     await this.goto()
-    await this.login('caixa@casagranella.com', 'operador123')
+    await this.login('caixa@panificadora.com', 'Caixa@123')
     await this.page.waitForURL('**/pdv')
   }
 

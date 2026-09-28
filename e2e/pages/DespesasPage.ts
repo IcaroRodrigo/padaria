@@ -56,7 +56,7 @@ export class DespesasPage {
   // ── Campos do formulário (escopados ao modal) ──────────────────────────────
 
   fieldDescription(): Locator {
-    return this.modal().getByPlaceholder('Ex: Aluguel de dezembro')
+    return this.modal().getByPlaceholder('Ex: Aluguel')
   }
 
   fieldAmount(): Locator {
