@@ -69,6 +69,11 @@ export class PdvPage {
     return this.page.getByRole('button', { name: /Finalizar Venda|Gerar QR Code PIX/ })
   }
 
+  fieldAmountReceived(): Locator {
+    // div.mt-3 que contém a label "Valor recebido" — só aparece quando CASH está selecionado
+    return this.page.locator('div.mt-3').filter({ hasText: 'Valor recebido' }).locator('input[type="number"]')
+  }
+
   saleSuccess(): Locator {
     return this.page.getByText('Venda concluída!')
   }
@@ -95,6 +100,11 @@ export class PdvPage {
     return this.closeCashRegisterModal().getByRole('button', { name: 'Confirmar fechamento' })
   }
 
+  // Botão "Concluir" que aparece no modal de sucesso após o caixa ser fechado
+  btnConcluirFechamento(): Locator {
+    return this.closeCashRegisterModal().getByRole('button', { name: 'Concluir' })
+  }
+
   // ── Modal de seleção de cliente ───────────────────────────────────────────
 
   customerSearchModal(): Locator {
@@ -115,12 +125,21 @@ export class PdvPage {
 
   // ── Helpers de alto nível ──────────────────────────────────────────────────
 
+  /** Aguarda a página do PDV atingir estado estável (caixa aberto ou fechado) */
+  private async waitForPdvStableState(timeout = 8000) {
+    await Promise.race([
+      this.searchInput().waitFor({ state: 'visible', timeout }),
+      this.openCashRegisterHeading().waitFor({ state: 'visible', timeout }),
+    ]).catch(() => {})
+  }
+
   /** Garante que existe um caixa aberto antes do teste */
   async ensureCashRegisterOpen(openingBalance = '100') {
     await this.goto()
+    await this.waitForPdvStableState()
     const heading = this.openCashRegisterHeading()
-    const isOpen = await heading.isVisible().catch(() => false)
-    if (isOpen) {
+    const isHeadingVisible = await heading.isVisible().catch(() => false)
+    if (isHeadingVisible) {
       await this.fieldOpeningBalance().fill(openingBalance)
       await this.btnAbrirCaixa().click()
       await this.searchInput().waitFor({ state: 'visible' })
@@ -130,6 +149,7 @@ export class PdvPage {
   /** Fecha o caixa se estiver aberto (via UI) */
   async closeCashRegisterIfOpen() {
     await this.goto()
+    await this.waitForPdvStableState()
     const fecharBtn = this.btnFecharCaixa()
     const isVisible = await fecharBtn.isVisible().catch(() => false)
     if (!isVisible) return
@@ -140,6 +160,9 @@ export class PdvPage {
     await this.btnFecharCaixaModal().click()
     await this.btnConfirmarFechamento().waitFor({ state: 'visible' })
     await this.btnConfirmarFechamento().click()
+    // Modal de sucesso "Caixa fechado!" — clicar em Concluir para fechar
+    await this.btnConcluirFechamento().waitFor({ state: 'visible' })
+    await this.btnConcluirFechamento().click()
     await this.openCashRegisterHeading().waitFor({ state: 'visible' })
   }
 

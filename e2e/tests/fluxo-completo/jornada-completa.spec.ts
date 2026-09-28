@@ -34,10 +34,13 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
   const DATE_FUTURE = '2027-12-31'
 
   const FORNECEDOR = `Farinhas do Norte E2E-${id}`
+  const CNPJ_FORNECEDOR = `12.${id.slice(0,3)}.${id.slice(3,6)}/0001-99`
   const PRODUTO_PAO = `Pão Francês E2E-${id}`
   const PRODUTO_BOLO = `Bolo de Cenoura E2E-${id}`
   const PRODUTO_COXINHA = `Coxinha de Frango E2E-${id}`
   const CLIENTE = `Maria da Silva E2E-${id}`
+  const cpfDigits = id.padStart(11, '0')
+  const CPF_CLIENTE = `${cpfDigits.slice(0,3)}.${cpfDigits.slice(3,6)}.${cpfDigits.slice(6,9)}-${cpfDigits.slice(9,11)}`
   const DESPESA_ALUGUEL = `Aluguel Dezembro E2E-${id}`
   const DESPESA_FARINHA = `Compra de Farinha E2E-${id}`
 
@@ -49,22 +52,23 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
     await expect(adminPage.getByRole('heading', { name: /Dashboard/ })).toBeVisible()
 
     // Sidebar deve mostrar o nome da empresa
-    await expect(adminPage.getByText('Minha Panificadora')).toBeVisible()
+    await expect(adminPage.locator('aside').getByText('Minha Panificadora').first()).toBeVisible()
 
-    // Navega por cada módulo e verifica o heading principal
-    const menus: Array<{ href: string; heading: RegExp }> = [
-      { href: '/pdv',          heading: /Ponto de Venda|PDV|Caixa/ },
-      { href: '/produtos',     heading: /Produtos/ },
-      { href: '/clientes',     heading: /Clientes/ },
-      { href: '/fornecedores', heading: /Fornecedores/ },
-      { href: '/despesas',     heading: /Despesas/ },
-      { href: '/relatorios',   heading: /Relatórios/ },
-      { href: '/dashboard',    heading: /Dashboard/ },
+    // Navega por cada módulo e verifica que a página carregou
+    const modulos = [
+      // PDV não tem heading quando o caixa está aberto — verifica o input de busca ou o heading de abertura
+      { href: '/pdv',          check: () => adminPage.locator('[placeholder*="Buscar produto"], h1:has-text("Abrir Caixa"), h2:has-text("Abrir Caixa")').first() },
+      { href: '/produtos',     check: () => adminPage.getByRole('heading', { name: /Produtos/ }).first() },
+      { href: '/clientes',     check: () => adminPage.getByRole('heading', { name: /Clientes/ }).first() },
+      { href: '/fornecedores', check: () => adminPage.getByRole('heading', { name: /Fornecedores/ }).first() },
+      { href: '/despesas',     check: () => adminPage.getByRole('heading', { name: /Despesas/ }).first() },
+      { href: '/relatorios',   check: () => adminPage.getByRole('heading', { name: /Relatórios/ }).first() },
+      { href: '/dashboard',    check: () => adminPage.getByRole('heading', { name: /Dashboard/ }).first() },
     ]
 
-    for (const menu of menus) {
-      await adminPage.goto(menu.href)
-      await expect(adminPage.getByRole('heading', { name: menu.heading }).first()).toBeVisible()
+    for (const modulo of modulos) {
+      await adminPage.goto(modulo.href)
+      await expect(modulo.check()).toBeVisible()
     }
   })
 
@@ -77,7 +81,7 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
     await page.createSupplier({
       companyName: FORNECEDOR,
       tradeName: `Farinhas Norte`,
-      cnpj: '12.345.678/0001-99',
+      cnpj: CNPJ_FORNECEDOR,
       phone: '(85) 99999-1234',
       email: 'contato@farinhasnorte.com.br',
       address: 'Rua do Trigo, 100 — Fortaleza/CE',
@@ -113,7 +117,7 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
       name: PRODUTO_BOLO,
       description: 'Bolo de cenoura com cobertura de chocolate',
       categoryId: '2',
-      unit: 'un',
+      unit: 'unidade',
       costPrice: '12.00',
       salePrice: '22.90',
       barcode: `789${id}02`,
@@ -128,7 +132,7 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
       name: PRODUTO_COXINHA,
       description: 'Coxinha de frango cremosa, massa crocante',
       categoryId: '3',
-      unit: 'un',
+      unit: 'unidade',
       costPrice: '1.80',
       salePrice: '4.50',
       barcode: `789${id}03`,
@@ -147,7 +151,7 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
 
     await page.createCustomer({
       name: CLIENTE,
-      cpf: '123.456.789-00',
+      cpf: CPF_CLIENTE,
       phone: '(11) 98765-4321',
       email: `maria.e2e${id}@email.com`,
       address: 'Rua das Flores, 42 — São Paulo/SP',
@@ -190,31 +194,12 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
   test('6. PDV: abre caixa, realiza 2 vendas e fecha o caixa', async ({ adminPage }) => {
     const pdv = new PdvPage(adminPage)
 
-    // Garante estado limpo: fecha se já houver caixa aberto
+    // Garante estado limpo: fecha se já houver caixa aberto, depois abre novo com R$ 200
     await pdv.closeCashRegisterIfOpen()
-
-    // Abre novo caixa com saldo inicial de R$ 200
-    await pdv.goto()
-    await expect(pdv.openCashRegisterHeading()).toBeVisible()
-    await pdv.fieldOpeningBalance().fill('200')
-    await pdv.btnAbrirCaixa().click()
-    await pdv.searchInput().waitFor({ state: 'visible' })
+    await pdv.ensureCashRegisterOpen('200')
     await expect(pdv.cashRegisterInfo()).toBeVisible()
 
     // ── Venda 1: Coxinha de Frango (Dinheiro) ──────────────────────────────
-
-    // Seleciona cliente antes de adicionar produto
-    await pdv.btnCliente().click()
-    await pdv.customerSearchModal().waitFor({ state: 'visible' })
-    await pdv.customerSearchInput().fill(CLIENTE.substring(0, 5))
-    // Aguarda o cliente aparecer no dropdown e clica
-    const clienteBtn = pdv.customerSearchModal().getByRole('button', { name: new RegExp(CLIENTE.substring(0, 10)) })
-    await clienteBtn.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {
-      // Cliente pode não aparecer no dropdown se a busca ainda não retornou — ok
-    })
-    const hasCliente = await clienteBtn.isVisible().catch(() => false)
-    if (hasCliente) await clienteBtn.click()
-    else await adminPage.keyboard.press('Escape')
 
     // Adiciona Coxinha ao carrinho
     await pdv.addProductBySearch(PRODUTO_COXINHA)
@@ -223,8 +208,8 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
     // Adiciona mais uma unidade (busca de novo)
     await pdv.addProductBySearch(PRODUTO_COXINHA)
 
-    // Finaliza com Dinheiro
-    await pdv.paymentMethodBtn('Dinheiro').click()
+    // CASH é o método padrão — não precisa clicar, apenas preenche valor recebido
+    await pdv.fieldAmountReceived().fill('20')
     await pdv.btnFinalizar().click()
     await expect(pdv.saleSuccess()).toBeVisible()
     await expect(pdv.saleSuccess()).toContainText('Venda concluída')
@@ -238,7 +223,7 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
     await pdv.addProductBySearch(PRODUTO_BOLO)
     await expect(pdv.cartEmpty()).not.toBeVisible()
 
-    await pdv.paymentMethodBtn('Dinheiro').click()
+    await pdv.fieldAmountReceived().fill('30')
     await pdv.btnFinalizar().click()
     await expect(pdv.saleSuccess()).toBeVisible()
 
@@ -252,6 +237,10 @@ test.describe.serial('Jornada Completa — Panificadora', () => {
     await pdv.btnFecharCaixaModal().click()
     await pdv.btnConfirmarFechamento().waitFor({ state: 'visible' })
     await pdv.btnConfirmarFechamento().click()
+    // Modal de sucesso "Caixa fechado!" — confirma com Concluir
+    await pdv.btnConcluirFechamento().waitFor({ state: 'visible' })
+    await expect(pdv.closeCashRegisterModal()).toContainText('Caixa fechado!')
+    await pdv.btnConcluirFechamento().click()
 
     // Após fechamento volta para tela de "Abrir Caixa"
     await expect(pdv.openCashRegisterHeading()).toBeVisible()

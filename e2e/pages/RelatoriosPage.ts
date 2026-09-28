@@ -42,19 +42,19 @@ export class RelatoriosPage {
   // ── Cards de resumo (aba Vendas) ──────────────────────────────────────────
 
   cardReceita(): Locator {
-    return this.page.locator('text=Receita (vendas)')
+    return this.page.locator('text=Faturamento').first()
   }
 
   cardDespesasFixas(): Locator {
-    return this.page.locator('text=Despesas fixas')
+    return this.page.locator('text=Despesas operacionais').first()
   }
 
   cardDespesasVariaveis(): Locator {
-    return this.page.locator('text=Despesas variáveis')
+    return this.page.locator('text=Custo mercadorias').first()
   }
 
   cardResultado(): Locator {
-    return this.page.locator('text=Resultado')
+    return this.page.locator('text=Lucro líquido').first()
   }
 
   // ── Tabela de auditoria ───────────────────────────────────────────────────
