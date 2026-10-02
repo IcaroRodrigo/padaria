@@ -85,8 +85,8 @@ export default function AdminConfiguracoesPage() {
   // ── PIX / WhatsApp config ─────────────────────────────────────────────────
   const [pixKey, setPixKey] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
-  const [valor, setValor] = useState('89')
-  const [pixName, setPixName] = useState('GRANELSYSTEM')
+  const [valor, setValor] = useState('90')
+  const [pixName, setPixName] = useState('COMECA BEM PADARIA')
   const [pixCity, setPixCity] = useState('CURITIBA')
 
   const { data: config, isLoading } = useQuery<SystemConfig>({
@@ -98,8 +98,8 @@ export default function AdminConfiguracoesPage() {
     if (!config) return
     setPixKey(config.saas_pix_key ?? '')
     setWhatsapp(config.saas_whatsapp ?? '')
-    setValor(config.saas_valor ?? '89')
-    setPixName(config.saas_pix_name ?? 'GRANELSYSTEM')
+    setValor(config.saas_valor ?? '90')
+    setPixName(config.saas_pix_name ?? 'COMECA BEM PADARIA')
     setPixCity(config.saas_pix_city ?? 'CURITIBA')
   }, [config])
 
@@ -193,7 +193,7 @@ export default function AdminConfiguracoesPage() {
                 label="Valor da mensalidade (R$)"
                 value={valor}
                 onChange={setValor}
-                placeholder="89"
+                placeholder="90"
                 hint="Somente o número, sem centavos"
               />
               <div>
@@ -216,7 +216,7 @@ export default function AdminConfiguracoesPage() {
                 label="Nome do recebedor (PIX)"
                 value={pixName}
                 onChange={setPixName}
-                placeholder="GRANELSYSTEM"
+                placeholder="COMECA BEM PADARIA"
                 hint="Máx. 25 caracteres, sem acentos"
               />
               <Field

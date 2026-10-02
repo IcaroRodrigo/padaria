@@ -4,8 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 const SYSTEM_CONFIG_DEFAULTS: Record<string, string> = {
   saas_pix_key:  '',
   saas_whatsapp: '',
-  saas_valor:    '89',
-  saas_pix_name: 'GRANELSYSTEM',
+  saas_valor:    '90',
+  saas_pix_name: 'COMECA BEM PADARIA',
   saas_pix_city: 'CURITIBA',
 };
 
@@ -152,7 +152,7 @@ export class EmpresaService {
     return {
       pixKey:  cfg.saas_pix_key,
       whatsapp: cfg.saas_whatsapp,
-      valor:   Number(cfg.saas_valor) || 89,
+      valor:   Number(cfg.saas_valor) || 90,
       pixName: cfg.saas_pix_name,
       pixCity: cfg.saas_pix_city,
     };
