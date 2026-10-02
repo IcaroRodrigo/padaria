@@ -17,7 +17,7 @@ export class EmailService {
   }
 
   private get from() {
-    return this.config.get<string>('RESEND_FROM_EMAIL') ?? 'GranelSystem <noreply@granelsystem.com.br>';
+    return this.config.get<string>('RESEND_FROM_EMAIL') ?? 'Começa Bem - Padaria <noreply@granelsystem.com.br>';
   }
 
   private get appUrl() {
@@ -30,7 +30,7 @@ export class EmailService {
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:32px">
           <div style="display:inline-block;background:#4a7c2f;border-radius:12px;padding:12px 20px">
-            <span style="color:#fff;font-size:18px;font-weight:700">GranelSystem</span>
+            <span style="color:#fff;font-size:18px;font-weight:700">Começa Bem - Padaria</span>
           </div>
         </div>
         <h2 style="margin:0 0 8px;font-size:22px;color:#1a1a1a">Confirme seu e-mail</h2>
@@ -56,12 +56,12 @@ export class EmailService {
 
   async sendPasswordReset(email: string, token: string, nome: string): Promise<void> {
     const link = `${this.appUrl}/redefinir-senha/${token}`;
-    const subject = 'Redefinição de senha — GranelSystem';
+    const subject = 'Redefinição de senha — Começa Bem - Padaria';
     const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
         <div style="text-align:center;margin-bottom:32px">
           <div style="display:inline-block;background:#4a7c2f;border-radius:12px;padding:12px 20px">
-            <span style="color:#fff;font-size:18px;font-weight:700">GranelSystem</span>
+            <span style="color:#fff;font-size:18px;font-weight:700">Começa Bem - Padaria</span>
           </div>
         </div>
         <h2 style="margin:0 0 8px;font-size:22px;color:#1a1a1a">Redefinição de senha</h2>

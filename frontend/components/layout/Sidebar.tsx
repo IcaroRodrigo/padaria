@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth'
 import { cn } from '@/lib/utils'
+import api from '@/lib/api'
 import {
   LayoutDashboard,
   Package,
@@ -40,6 +42,12 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname()
   const { user, logout } = useAuthStore()
   const isAdmin = user?.role === 'ADMIN'
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/settings').then(r => r.data),
+    enabled: !!user,
+  })
+  const storeName = settings?.store_name || user?.empresaNome || 'Minha Padaria'
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin)
 
@@ -52,7 +60,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
             <Cookie className="w-5 h-5 text-white" />
           </div>
           <div>
-            <div className="text-[#493329] font-bold text-base leading-tight">{user?.empresaNome ?? 'Panificadora'}</div>
+            <div className="text-[#493329] font-bold text-base leading-tight">{storeName}</div>
             <div className="text-[#493329]/60 text-xs">Sistema de Gestão</div>
           </div>
         </div>
