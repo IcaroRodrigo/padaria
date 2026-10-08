@@ -46,14 +46,17 @@ async function main() {
 
   const categories = [
     'Pães',
+    'Pães Doces',
     'Bolos e Tortas',
     'Salgados',
+    'Lanches',
     'Doces e Confeitaria',
-    'Bebidas',
     'Frios e Laticínios',
     'Embutidos',
-    'Produtos Naturais',
-    'Biscoitos e Snacks',
+    'Rotisseria',
+    'Hortifruti',
+    'Biscoitos e Padaria Seca',
+    'Amanhecidos',
     'Outros',
   ];
 

@@ -264,6 +264,40 @@ export class ProductsService {
     return { lastPlu, nextPlu: (lastPlu ?? 0) + 1 };
   }
 
+  async bulkImport(
+    products: { name: string; plu: number; salePrice: number; unit: string; categoryName: string }[],
+    empresaId: number,
+  ) {
+    let created = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+    const categoryCache = new Map<string, number>();
+
+    const getOrCreateCategory = async (name: string): Promise<number> => {
+      if (categoryCache.has(name)) return categoryCache.get(name)!;
+      let cat = await this.prisma.category.findFirst({ where: { name, empresaId }, select: { id: true } });
+      if (!cat) cat = await this.prisma.category.create({ data: { name, empresaId }, select: { id: true } });
+      categoryCache.set(name, cat.id);
+      return cat.id;
+    };
+
+    for (const p of products) {
+      try {
+        const existing = await this.prisma.product.findFirst({ where: { plu: p.plu, empresaId }, select: { id: true } });
+        if (existing) { skipped++; continue; }
+        const categoryId = await getOrCreateCategory(p.categoryName);
+        await this.prisma.product.create({
+          data: { empresaId, name: p.name, categoryId, unit: p.unit, costPrice: 0, salePrice: p.salePrice, plu: p.plu, active: true },
+        });
+        created++;
+      } catch (e: any) {
+        errors.push(`${p.name}: ${e.message}`);
+      }
+    }
+
+    return { created, skipped, errors };
+  }
+
   async getCategories(empresaId: number) {
     return this.prisma.category.findMany({
       where: { empresaId },

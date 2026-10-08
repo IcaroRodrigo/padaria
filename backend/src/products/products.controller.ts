@@ -68,6 +68,16 @@ export class ProductsController {
     return this.productsService.findByPlu(plu, user.empresaId);
   }
 
+  @Post('bulk-import')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  bulkImport(
+    @Body() body: { products: { name: string; plu: number; salePrice: number; unit: string; categoryName: string }[] },
+    @CurrentUser() user: any,
+  ) {
+    return this.productsService.bulkImport(body.products, user.empresaId);
+  }
+
   @Post('categories')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)

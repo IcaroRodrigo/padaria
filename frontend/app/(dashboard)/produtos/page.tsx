@@ -14,8 +14,9 @@ import { Card } from '@/components/ui/card'
 import { Table, Thead, Th, Tbody, Tr, Td } from '@/components/ui/table'
 import { ProductForm } from '@/components/products/ProductForm'
 import { StockEntryModal } from '@/components/products/StockEntryModal'
+import { ImportMGVModal } from '@/components/products/ImportMGVModal'
 import { Modal } from '@/components/ui/modal'
-import { Plus, Search, Edit, EyeOff, Eye, Scale, Download, Tag, Trash2, PackagePlus } from 'lucide-react'
+import { Plus, Search, Edit, EyeOff, Eye, Scale, Download, Tag, Trash2, PackagePlus, Upload } from 'lucide-react'
 
 export default function ProdutosPage() {
   const qc = useQueryClient()
@@ -24,6 +25,7 @@ export default function ProdutosPage() {
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [stockEntryProduct, setStockEntryProduct] = useState<Product | null>(null)
+  const [showImport, setShowImport] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
 
   const toggleSelect = (id: number) => {
@@ -168,6 +170,9 @@ export default function ProdutosPage() {
                 <Tag size={16} /> Gerar Etiquetas ({selectedIds.size})
               </Button>
             )}
+            <Button variant="outline" onClick={() => setShowImport(true)}>
+              <Upload size={16} /> Importar Balança
+            </Button>
             <Button variant="outline" onClick={handleExportBalanca}>
               <Scale size={16} /> Exportar Balança
             </Button>
@@ -356,6 +361,8 @@ export default function ProdutosPage() {
         product={stockEntryProduct}
         onClose={() => setStockEntryProduct(null)}
       />
+
+      {showImport && <ImportMGVModal onClose={() => setShowImport(false)} />}
     </div>
   )
 }
