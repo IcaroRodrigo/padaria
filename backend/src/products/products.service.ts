@@ -38,7 +38,7 @@ export class ProductsService {
 
     if (dto.plu) {
       const existing = await this.prisma.product.findUnique({
-        where: { plu: dto.plu },
+        where: { plu_empresaId: { plu: dto.plu, empresaId } },
         select: { name: true },
       });
       if (existing)
@@ -149,7 +149,7 @@ export class ProductsService {
 
     if (dto.plu) {
       const existing = await this.prisma.product.findFirst({
-        where: { plu: dto.plu, NOT: { id } },
+        where: { plu: dto.plu, empresaId, NOT: { id } },
         select: { name: true },
       });
       if (existing)

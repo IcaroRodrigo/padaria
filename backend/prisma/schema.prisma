@@ -116,7 +116,7 @@ model Product {
   costPrice      Decimal    @db.Decimal(10, 2)
   salePrice      Decimal    @db.Decimal(10, 2)
   barcode        String?    @unique
-  plu            Int?       @unique
+  plu            Int?
   supplierId     Int?
   supplier       Supplier?  @relation(fields: [supplierId], references: [id])
   expirationDate DateTime?
@@ -126,6 +126,8 @@ model Product {
   createdAt      DateTime   @default(now())
   saleItems      SaleItem[]
   stockEntries   StockEntry[]
+
+  @@unique([plu, empresaId])
 }
 
 // ─── CLIENTES & FORNECEDORES ──────────────────────────────────────────────────
