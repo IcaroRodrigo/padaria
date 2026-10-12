@@ -28,10 +28,9 @@ export function PixQRCode({ amount, onConfirm }: PixQRCodeProps) {
 
     const p = generatePixPayload({
       pixKey: settings.pix_key,
-      merchantName: settings.pix_merchant_name || settings.store_name || 'Casa Granella',
+      merchantName: settings.pix_merchant_name || settings.store_name || 'PADARIA',
       merchantCity: settings.store_city || 'SAO PAULO',
       amount,
-      description: 'Casa Granella',
     })
 
     setPayload(p)
