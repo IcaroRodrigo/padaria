@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import QRCode from 'qrcode'
 import api from '@/lib/api'
 import { Modal } from '@/components/ui/modal'
@@ -30,6 +30,12 @@ export function NfceModal({ open, onClose, saleId, sale }: NfceModalProps) {
   const [cpf, setCpf] = useState('')
   const [result, setResult] = useState<FiscalNote | null>(null)
   const [printing, setPrinting] = useState(false)
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/settings').then(r => r.data),
+  })
+  const storeName = settings?.store_name || 'Minha Padaria'
 
   const mutation = useMutation({
     mutationFn: (cpfValue?: string) =>
@@ -142,8 +148,8 @@ export function NfceModal({ open, onClose, saleId, sale }: NfceModalProps) {
 </style>
 </head>
 <body>
-  <h1>CASA GRANELLA</h1>
-  <p class="sub">Produtos Naturais · Colombo/PR</p>
+  <h1>${storeName.toUpperCase()}</h1>
+  ${settings?.store_city ? `<p class="sub">${settings.store_city}</p>` : ''}
   ${isHomolog ? '<p style="text-align:center"><span class="badge">HOMOLOGAÇÃO — SEM VALOR FISCAL</span></p>' : ''}
   <hr>
   <p><strong>NFC-e nº ${result.numeroNota ?? '—'}</strong> · Série ${result.serie ?? '1'}</p>
@@ -169,7 +175,7 @@ export function NfceModal({ open, onClose, saleId, sale }: NfceModalProps) {
   <p style="font-size:9px;margin-bottom:4px;text-align:center">DANFE NFC-e — Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica</p>
   <p class="chave">${chaveFormatada}</p>
   ${qrDataUrl ? `<div class="qr-block"><img src="${qrDataUrl}" alt="QR Code NFC-e"><br><span style="font-size:9px">Consulte em nfce.fazenda.pr.gov.br</span></div>` : ''}
-  <p class="footer">Obrigado pela preferência! · Casa Granella</p>
+  <p class="footer">Obrigado pela preferência! · ${storeName}</p>
 </body>
 </html>`
 

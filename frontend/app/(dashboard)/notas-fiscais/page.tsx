@@ -60,6 +60,12 @@ export default function NotasFiscaisPage() {
       ).then(r => r.data),
   })
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/settings').then(r => r.data),
+  })
+  const storeName = settings?.store_name || 'Minha Padaria'
+
   const cancelMutation = useMutation({
     mutationFn: ({ id, just }: { id: number; just: string }) =>
       api.delete(`/fiscal/${id}/cancel`, { data: { justificativa: just } }),
@@ -114,8 +120,8 @@ td { padding:2px 0; vertical-align:top; }
 @media print { body { padding:0; } }
 </style></head>
 <body>
-<h1>CASA GRANELLA</h1>
-<p class="sub">Produtos Naturais · Colombo/PR</p>
+<h1>${storeName.toUpperCase()}</h1>
+${settings?.store_city ? `<p class="sub">${settings.store_city}</p>` : ''}
 ${isHomolog ? '<p style="text-align:center"><span class="badge">HOMOLOGAÇÃO — SEM VALOR FISCAL</span></p>' : ''}
 <hr>
 <p><strong>NFC-e nº ${note.numeroNota ?? '—'}</strong> · Série ${note.serie ?? '1'}</p>
@@ -126,7 +132,7 @@ ${note.cpfDestinatario ? `<p>CPF: ${note.cpfDestinatario}</p>` : ''}
 <p style="font-size:9px;margin-bottom:4px;text-align:center">DANFE NFC-e — Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica</p>
 <p class="chave">${chaveFormatada(note.chaveAcesso)}</p>
 ${qrDataUrl ? `<div class="qr-block"><img src="${qrDataUrl}" alt="QR Code NFC-e"><br><span style="font-size:9px">Consulte em nfce.fazenda.pr.gov.br</span></div>` : ''}
-<p class="footer">Casa Granella · Obrigado pela preferência!</p>
+<p class="footer">${storeName} · Obrigado pela preferência!</p>
 </body></html>`
 
       const win = window.open('', '_blank', 'width=480,height=720')

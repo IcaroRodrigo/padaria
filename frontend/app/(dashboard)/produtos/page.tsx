@@ -62,7 +62,7 @@ export default function ProdutosPage() {
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <title>Etiquetas — Casa Granella</title>
+  <title>Etiquetas — ${storeName}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; background: white; }
@@ -90,7 +90,7 @@ export default function ProdutosPage() {
 </head>
 <body>
   <div class="toolbar">
-    <span style="font-size:14px"><strong>Casa Granella</strong> — ${selected.length} etiqueta(s)</span>
+    <span style="font-size:14px"><strong>${storeName}</strong> — ${selected.length} etiqueta(s)</span>
     <button onclick="window.print()" style="background:#4a7c2f;color:white;border:none;padding:8px 20px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold">Imprimir</button>
     <button onclick="window.close()" style="background:#eee;border:1px solid #ccc;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:14px">Fechar</button>
   </div>
@@ -118,6 +118,12 @@ export default function ProdutosPage() {
     queryKey: ['plu-next'],
     queryFn: () => api.get('/products/plu/next').then((r) => r.data),
   })
+
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/settings').then((r) => r.data),
+  })
+  const storeName = settings?.store_name || 'Minha Padaria'
 
   const toggleMutation = useMutation({
     mutationFn: (product: Product) =>

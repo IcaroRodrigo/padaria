@@ -32,6 +32,12 @@ export function NfceCaixaButton({ cashRegisterId }: { cashRegisterId: number }) 
     enabled: open,
   })
 
+  const { data: settings } = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/settings').then(r => r.data),
+  })
+  const storeName = settings?.store_name || 'Minha Padaria'
+
   const mutation = useMutation({
     mutationFn: (cpfValue?: string) =>
       api.post<FiscalNote>(`/fiscal/caixa/${cashRegisterId}/emit`, { cpf: cpfValue || undefined }),
@@ -69,8 +75,8 @@ hr { border:none; border-top:1px dashed #999; margin:8px 0; }
 @media print { body { padding:0; } }
 </style></head>
 <body>
-<h1>CASA GRANELLA</h1>
-<p class="sub">Produtos Naturais · Colombo/PR</p>
+<h1>${storeName.toUpperCase()}</h1>
+${settings?.store_city ? `<p class="sub">${settings.store_city}</p>` : ''}
 ${isHomolog ? '<p style="text-align:center;margin-top:4px"><span class="badge">HOMOLOGAÇÃO — SEM VALOR FISCAL</span></p>' : ''}
 <hr>
 <p><strong>NFC-e nº ${result.numeroNota ?? '—'}</strong> · Série ${result.serie ?? '1'}</p>
@@ -80,7 +86,7 @@ ${isHomolog ? '<p style="text-align:center;margin-top:4px"><span class="badge">H
 <p style="font-size:9px;text-align:center;margin-bottom:4px">DANFE NFC-e — Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica</p>
 <p class="chave">${chaveFormatada}</p>
 ${qrDataUrl ? `<div class="qr-block"><img src="${qrDataUrl}" alt="QR Code"><br><span style="font-size:9px">Consulte em nfce.fazenda.pr.gov.br</span></div>` : ''}
-<p class="footer">Casa Granella · Obrigado pela preferência!</p>
+<p class="footer">${storeName} · Obrigado pela preferência!</p>
 </body></html>`
 
       const win = window.open('', '_blank', 'width=480,height=720')
