@@ -303,34 +303,69 @@ def _send_wifi(data: bytes):
     except Exception as e:
         return False, f'Erro WiFi: {e} | IP: {PRINTER_IP}:{PRINTER_PORT}'
 
-def _find_usb_printer_name():
-    if USB_PRINTER_NAME:
-        return USB_PRINTER_NAME
+def _list_local_printers():
+    """Retorna lista de (nome, disponivel) das impressoras locais."""
     try:
         import win32print
-        printers = [p[2] for p in win32print.EnumPrinters(
-            win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
-        )]
-        for name in printers:
-            if any(k in name.lower() for k in _USB_KEYWORDS):
-                return name
-        default = win32print.GetDefaultPrinter()
-        return default if default else (printers[0] if printers else None)
+        # PRINTER_ENUM_LOCAL — somente impressoras físicas locais, sem rede/conexões
+        raw = win32print.EnumPrinters(win32print.PRINTER_ENUM_LOCAL)
+        result = []
+        for _, _, name, _ in raw:
+            try:
+                h    = win32print.OpenPrinter(name)
+                info = win32print.GetPrinter(h, 2)
+                win32print.ClosePrinter(h)
+                # Bit 0x4 = PRINTER_STATUS_PENDING_DELETION (impressora "excluída")
+                ok = not (info['Status'] & 0x4)
+                result.append((name, ok))
+            except Exception:
+                result.append((name, False))
+        return result
     except Exception:
-        return None
+        return []
+
+def _find_usb_printer_name():
+    """Retorna o nome da impressora USB disponível, ou None se não encontrar."""
+    # Nome explícito tem prioridade — pulamos a detecção automática
+    if USB_PRINTER_NAME:
+        return USB_PRINTER_NAME
+
+    printers = _list_local_printers()
+
+    # 1ª passagem: keyword + disponível
+    for name, ok in printers:
+        if ok and any(k in name.lower() for k in _USB_KEYWORDS):
+            return name
+    # 2ª passagem: keyword sem checar disponibilidade
+    for name, ok in printers:
+        if any(k in name.lower() for k in _USB_KEYWORDS):
+            return name
+    # 3ª passagem: primeira impressora disponível (sem fallback para GetDefaultPrinter)
+    for name, ok in printers:
+        if ok:
+            return name
+
+    return None  # não encontrou nada utilizável
 
 def _send_usb(data: bytes):
     if sys.platform != 'win32':
         return _send_serial(data)
     try:
         import win32print
-        printer_name = _find_usb_printer_name()
-        if not printer_name:
-            return False, (
-                'Impressora USB nao encontrada. '
-                'Instale o driver e verifique em Dispositivos e Impressoras. '
-                'Ou defina USB_PRINTER_NAME no topo do agente.'
-            )
+    except ImportError:
+        return False, 'pywin32 nao instalado. Execute: pip install pywin32'
+
+    printer_name = _find_usb_printer_name()
+    if not printer_name:
+        disponiveis = [n for n, _ in _list_local_printers()]
+        lista = ', '.join(disponiveis) if disponiveis else 'nenhuma'
+        return False, (
+            f'Impressora USB nao encontrada. '
+            f'Impressoras locais detectadas: [{lista}]. '
+            f'Defina USB_PRINTER_NAME no topo do agente com o nome exato.'
+        )
+
+    try:
         hPrinter = win32print.OpenPrinter(printer_name)
         try:
             hJob = win32print.StartDocPrinter(hPrinter, 1, ('Cupom', None, 'RAW'))
@@ -343,10 +378,12 @@ def _send_usb(data: bytes):
         finally:
             win32print.ClosePrinter(hPrinter)
         return True, f'OK (USB → {printer_name})'
-    except ImportError:
-        return False, 'pywin32 nao instalado. Execute: pip install pywin32'
     except Exception as e:
-        return False, f'Erro USB: {e}'
+        disponiveis = [f'{n} ({"ok" if ok else "erro"})' for n, ok in _list_local_printers()]
+        return False, (
+            f'Erro USB [{printer_name}]: {e} | '
+            f'Impressoras: {", ".join(disponiveis) or "nenhuma"}'
+        )
 
 def _send_serial(data: bytes):
     try:
@@ -535,6 +572,14 @@ class AgenteUI:
                   padx=10, pady=4, cursor='hand2'
                   ).pack(side='left', padx=(0, 8))
 
+        if PRINTER_MODE == 'usb' and sys.platform == 'win32':
+            tk.Button(btns, text='Impressoras',
+                      command=self._show_printers,
+                      font=('Segoe UI', 9), relief='flat', bd=0,
+                      bg=self.COR_BORDA, activebackground='#d1d5db',
+                      padx=10, pady=4, cursor='hand2'
+                      ).pack(side='left', padx=(0, 8))
+
         tk.Button(btns, text='Parar agente',
                   command=self._on_close,
                   font=('Segoe UI', 9), relief='flat', bd=0,
@@ -551,6 +596,29 @@ class AgenteUI:
             hora = _last_ok.strftime('%H:%M:%S')
             self._status_var.set(f'✓ {_print_count} cupom{"ns" if _print_count != 1 else ""} impresso{"s" if _print_count != 1 else ""} · último às {hora}')
             self._status_lbl.config(fg=self.COR_VERDE)
+
+    def _show_printers(self):
+        """Mostra todas as impressoras locais detectadas pelo Windows."""
+        printers = _list_local_printers()
+        found    = _find_usb_printer_name()
+
+        if not printers:
+            messagebox.showinfo('Impressoras', 'Nenhuma impressora local encontrada.\n\nInstale o driver da Golden Sky e reconecte o cabo USB.')
+            return
+
+        linhas = ['Impressoras locais detectadas:\n']
+        for name, ok in printers:
+            status = '✓ disponivel' if ok else '✗ com erro / excluida'
+            marca  = '  << EM USO' if name == found else ''
+            linhas.append(f'  {status}  —  {name}{marca}')
+
+        if found:
+            linhas.append(f'\nImpressora em uso: "{found}"')
+        else:
+            linhas.append('\nNenhuma impressora compativel encontrada.')
+            linhas.append('Defina USB_PRINTER_NAME no topo do agente com o nome exato acima.')
+
+        messagebox.showinfo('Impressoras detectadas', '\n'.join(linhas))
 
     def _on_close(self):
         if messagebox.askokcancel('Parar agente', 'Deseja parar o agente de impressão?\n\nO PDV não conseguirá imprimir enquanto o agente estiver fechado.'):
