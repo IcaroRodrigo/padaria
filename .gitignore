@@ -6,3 +6,5 @@ dist/
 .next/
 .DS_Store
 coverage/
+*.exe
+backend/static/

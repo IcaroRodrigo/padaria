@@ -1,11 +1,15 @@
-name: Build agent_impressora.exe
+name: Build agente_impressora.exe
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'agente_impressora.py'
+    tags:
+      - 'agente-v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag da versão (ex: agente-v1.2)'
+        required: true
+        default: 'agente-v1.0'
 
 permissions:
   contents: write
@@ -18,28 +22,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install pyinstaller pyserial
+      - name: Instalar dependências
+        run: pip install pyinstaller pyserial pywin32
 
-      - name: Build exe
-        run: pyinstaller --onefile --noconsole --name agent_impressora agente_impressora.py
+      - name: Build .exe
+        run: >
+          pyinstaller
+          --onefile
+          --noconsole
+          --name agent_impressora
+          --hidden-import win32print
+          --hidden-import win32api
+          --hidden-import serial
+          --hidden-import serial.tools.list_ports
+          agente_impressora.py
 
-      - name: Move to backend/static
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path backend/static | Out-Null
-          Copy-Item dist/agent_impressora.exe backend/static/agent_impressora.exe -Force
+      - name: Publicar Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          name: Agente de Impressão ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          body: |
+            ## Agente de Impressão — Golden Sky 80mm
 
-      - name: Commit and push
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add backend/static/agent_impressora.exe
-          git diff --staged --quiet && echo "Sem alteracoes" || git commit -m "build: atualiza agent_impressora.exe [skip ci]"
-          git push
+            Compatível com Golden Sky 80mm **WiFi**, **Rede** e **USB**.
+
+            ### Como instalar
+            1. Baixe o `agent_impressora.exe` abaixo
+            2. Execute no computador do caixa — fica em segundo plano na porta 9100
+            3. Verifique em http://localhost:9100/status se o agente está rodando
+
+            ### Modos (edite o `.py` antes de gerar o `.exe` se precisar mudar)
+            | Modo | Quando usar |
+            |------|-------------|
+            | `usb` | Impressora USB com driver instalado no Windows *(padrão)* |
+            | `wifi` | Impressora na rede WiFi ou cabo Ethernet |
+            | `serial` | USB com chip serial (CH340, CP210x, etc.) |
+          files: dist/agent_impressora.exe
+          draft: false
+          prerelease: false

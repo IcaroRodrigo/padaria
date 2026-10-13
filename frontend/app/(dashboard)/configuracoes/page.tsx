@@ -6,7 +6,7 @@ import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { CheckCircle2, Settings2, Download, Receipt, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Settings2, Download, Receipt, Lock, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react'
 import { PasswordCriteria, senhaValida } from '@/components/ui/PasswordCriteria'
 import { useAuthStore } from '@/store/auth'
 
@@ -61,7 +61,6 @@ export default function ConfiguracoesPage() {
   const qc = useQueryClient()
   const user = useAuthStore(s => s.user)
   const [saved, setSaved] = useState(false)
-  const [downloading, setDownloading] = useState(false)
 
   // ── Alterar senha ─────────────────────────────────────────────────────────
   const [senhaAtual, setSenhaAtual] = useState('')
@@ -87,23 +86,6 @@ export default function ConfiguracoesPage() {
     if (!senhaValida(novaSenha)) { setSenhaFeedback({ ok: false, msg: 'A nova senha não atende todos os critérios de segurança.' }); return }
     if (novaSenha !== confirmSenha) { setSenhaFeedback({ ok: false, msg: 'As senhas não coincidem.' }); return }
     trocarSenha.mutate()
-  }
-
-  const handleDownloadAgent = async () => {
-    setDownloading(true)
-    try {
-      const response = await api.get('/downloads/agent-impressora', { responseType: 'blob' })
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'agent_impressora.exe'
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-    } finally {
-      setDownloading(false)
-    }
   }
 
   const { data: settings = {}, isLoading } = useQuery({
@@ -276,19 +258,31 @@ export default function ConfiguracoesPage() {
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
             Agente de Impressão
           </h2>
-          <p className="text-xs text-muted-foreground mb-4">
-            O agente local é necessário para imprimir cupons na impressora Bematech MP-4200 HS.
-            Instale e execute no computador do caixa.
+          <p className="text-xs text-muted-foreground mb-3">
+            O agente local é necessário para imprimir cupons na impressora Golden Sky 80mm
+            (WiFi, Rede ou USB). Instale e execute no computador do caixa.
           </p>
-          <Button
-            variant="outline"
-            onClick={handleDownloadAgent}
-            loading={downloading}
-            className="flex items-center gap-2"
-          >
-            <Download size={16} />
-            Baixar agent_impressora.exe
-          </Button>
+          <div className="flex flex-col gap-2">
+            <a
+              href="https://github.com/IcaroRodrigo/padaria/releases/latest/download/agent_impressora.exe"
+              className="inline-flex items-center gap-2 px-4 py-2 border border-border rounded-lg text-sm font-medium hover:bg-muted/50 transition w-fit"
+            >
+              <Download size={16} />
+              Baixar agent_impressora.exe
+            </a>
+            <p className="text-xs text-muted-foreground">
+              Após instalar, verifique em{' '}
+              <a
+                href="http://localhost:9100/status"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline inline-flex items-center gap-0.5"
+              >
+                localhost:9100/status <ExternalLink size={10} />
+              </a>
+              {' '}se o agente está rodando.
+            </p>
+          </div>
         </section>
 
         {/* Fiscal / NFC-e */}
