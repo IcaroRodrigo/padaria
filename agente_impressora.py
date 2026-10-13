@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Agente local de impressão — Panificadora v3.1
+Agente local de impressão — Panificadora v3.2
 Impressora: Golden Sky 80mm (WiFi/Rede ou USB)
 Escuta em http://localhost:9100 e envia ESC/POS para a impressora.
 
@@ -14,16 +14,23 @@ Dependências:
   pip install pywin32           (modo usb — Windows only)
   pip install pyinstaller       (para gerar .exe)
 
-Gerar .exe (inclui os dois modos):
+Gerar .exe:
   pip install pyinstaller pyserial pywin32
-  pyinstaller --onefile --noconsole agente_impressora.py
+  pyinstaller --onefile --noconsole --hidden-import win32print --hidden-import win32api
+              --hidden-import serial --hidden-import serial.tools.list_ports
+              agente_impressora.py
 """
 
 import json
 import socket
 import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
+import webbrowser
 from datetime import datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+import tkinter as tk
+from tkinter import messagebox
 
 # ═════════════════════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO — edite aqui antes de gerar o .exe
@@ -38,16 +45,11 @@ PRINTER_MODE = 'usb'  # 'wifi'    → TCP socket (WiFi ou rede)
 # Modo WiFi / Rede ─────────────────────────────────────────────────────────
 PRINTER_IP     = '192.168.1.100'  # << IP da impressora na rede
 PRINTER_PORT   = 9100             # porta RAW (padrão Golden Sky rede)
-SOCKET_TIMEOUT = 5                # timeout em segundos
+SOCKET_TIMEOUT = 5
 
 # Modo USB ─────────────────────────────────────────────────────────────────
-# Deixe vazio para detecção automática pelo nome no Windows.
-# Se houver várias impressoras, coloque o nome exato que aparece em
-# Painel de Controle → Dispositivos e Impressoras.
-USB_PRINTER_NAME = ''
-
-# Palavras-chave para auto-detecção da impressora USB/rede no Windows
-_USB_KEYWORDS = ['golden', 'sky', 'pos', 'thermal', '80mm', 'receipt', 'cupom']
+USB_PRINTER_NAME = ''   # vazio = detecta automaticamente
+_USB_KEYWORDS    = ['golden', 'sky', 'pos', 'thermal', '80mm', 'receipt', 'cupom']
 
 # Modo Serial / COM ────────────────────────────────────────────────────────
 SERIAL_BAUD   = 115200
@@ -55,7 +57,13 @@ _COM_KEYWORDS = ['golden', 'sky', 'usb serial', 'ch340', 'cp210', 'ft232', 'prol
 
 # ═════════════════════════════════════════════════════════════════════════════
 
-# ESC/POS — compatível com qualquer impressora 80mm
+# Estado compartilhado entre o servidor HTTP e a UI
+_print_count    = 0
+_last_ok        = None   # datetime da última impressão bem-sucedida
+_last_error     = None   # mensagem do último erro
+_ui_ref         = None   # referência para a janela tkinter
+
+# ESC/POS
 ESC = b'\x1b'
 GS  = b'\x1d'
 
@@ -67,9 +75,9 @@ BOLD_OFF     = ESC + b'E\x00'
 DOUBLE_ON    = GS  + b'!\x11'
 DOUBLE_OFF   = GS  + b'!\x00'
 FEED         = ESC + b'd\x04'
-CUT          = GS  + b'V\x41\x00'  # corte total (guilhotina)
+CUT          = GS  + b'V\x41\x00'
 
-COLS = 48  # 80mm a 12 dots/char = 48 colunas
+COLS = 48
 
 def line(text=''):
     return str(text).encode('cp850', errors='replace') + b'\n'
@@ -278,7 +286,7 @@ def build_nfce_receipt(data: dict, nome_empresa: str = 'PANIFICADORA', subtitulo
     return bytes(buf)
 
 
-# ── Envio: roteamento por modo ────────────────────────────────────────────────
+# ── Envio para a impressora ───────────────────────────────────────────────────
 def send_to_printer(data: bytes):
     if PRINTER_MODE == 'wifi':
         return _send_wifi(data)
@@ -287,49 +295,39 @@ def send_to_printer(data: bytes):
     else:
         return _send_serial(data)
 
-
 def _send_wifi(data: bytes):
     try:
         with socket.create_connection((PRINTER_IP, PRINTER_PORT), timeout=SOCKET_TIMEOUT) as s:
             s.sendall(data)
         return True, f'OK (WiFi/Rede {PRINTER_IP}:{PRINTER_PORT})'
     except Exception as e:
-        return False, f'Erro WiFi: {e} | IP configurado: {PRINTER_IP}:{PRINTER_PORT}'
-
+        return False, f'Erro WiFi: {e} | IP: {PRINTER_IP}:{PRINTER_PORT}'
 
 def _find_usb_printer_name():
-    """Retorna o nome da impressora no Windows, priorizando USB_PRINTER_NAME."""
     if USB_PRINTER_NAME:
         return USB_PRINTER_NAME
     try:
         import win32print
-        # PRINTER_ENUM_LOCAL lista impressoras locais (USB incluso)
         printers = [p[2] for p in win32print.EnumPrinters(
             win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
         )]
         for name in printers:
             if any(k in name.lower() for k in _USB_KEYWORDS):
                 return name
-        # fallback: impressora padrão do Windows
         default = win32print.GetDefaultPrinter()
         return default if default else (printers[0] if printers else None)
     except Exception:
         return None
 
-
 def _send_usb(data: bytes):
-    """Envia ESC/POS via API do Windows (win32print, tipo RAW).
-    Funciona com qualquer impressora USB instalada com driver padrão.
-    """
     if sys.platform != 'win32':
-        # fora do Windows, tenta serial como fallback
         return _send_serial(data)
     try:
         import win32print
         printer_name = _find_usb_printer_name()
         if not printer_name:
             return False, (
-                'Impressora USB nao encontrada no Windows. '
+                'Impressora USB nao encontrada. '
                 'Instale o driver e verifique em Dispositivos e Impressoras. '
                 'Ou defina USB_PRINTER_NAME no topo do agente.'
             )
@@ -350,9 +348,7 @@ def _send_usb(data: bytes):
     except Exception as e:
         return False, f'Erro USB: {e}'
 
-
 def _send_serial(data: bytes):
-    """Envia via porta COM (impressoras com chip USB-Serial: CH340, CP210x, etc.)."""
     try:
         import serial
         import serial.tools.list_ports
@@ -391,12 +387,18 @@ class Handler(BaseHTTPRequestHandler):
         if PRINTER_MODE == 'wifi':
             info = f'WiFi/Rede → {PRINTER_IP}:{PRINTER_PORT}'
         elif PRINTER_MODE == 'usb':
-            name = _find_usb_printer_name() if sys.platform == 'win32' else 'N/A (nao-Windows)'
+            name = _find_usb_printer_name() if sys.platform == 'win32' else 'N/A'
             info = f'USB → {name or "nao detectada"}'
         else:
             info = f'Serial → {SERIAL_BAUD} baud'
 
-        resp = json.dumps({'ok': True, 'mode': PRINTER_MODE, 'info': info}).encode()
+        resp = json.dumps({
+            'ok': True,
+            'mode': PRINTER_MODE,
+            'info': info,
+            'printCount': _print_count,
+            'lastPrint': _last_ok.strftime('%H:%M:%S') if _last_ok else None,
+        }).encode()
         self.send_response(200)
         self._cors()
         self.send_header('Content-Type', 'application/json')
@@ -404,6 +406,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(resp)
 
     def do_POST(self):
+        global _print_count, _last_ok, _last_error
+
         if self.path not in ('/print', '/print-nfce'):
             self.send_response(404)
             self.end_headers()
@@ -421,11 +425,22 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 receipt = build_receipt(data, nome_empresa, subtitulo)
             ok, msg = send_to_printer(receipt)
-            status  = 200 if ok else 500
-            resp    = json.dumps({'ok': ok, 'message': msg}).encode()
+            if ok:
+                _print_count += 1
+                _last_ok    = datetime.now()
+                _last_error = None
+            else:
+                _last_error = msg
+            status = 200 if ok else 500
+            resp   = json.dumps({'ok': ok, 'message': msg}).encode()
         except Exception as e:
+            _last_error = str(e)
             status = 500
             resp   = json.dumps({'ok': False, 'message': str(e)}).encode()
+
+        # Atualiza a UI de forma thread-safe
+        if _ui_ref is not None:
+            _ui_ref.root.after(0, _ui_ref.refresh)
 
         self.send_response(status)
         self._cors()
@@ -439,25 +454,129 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
 
-def main():
-    if PRINTER_MODE == 'wifi':
-        mode_info = f'WiFi/Rede → {PRINTER_IP}:{PRINTER_PORT}'
-    elif PRINTER_MODE == 'usb':
-        name = _find_usb_printer_name() if sys.platform == 'win32' else 'N/A'
-        mode_info = f'USB → {name or "aguardando driver"}'
-    else:
-        mode_info = f'Serial → {SERIAL_BAUD} baud'
+# ── Interface gráfica (tkinter) ───────────────────────────────────────────────
+class AgenteUI:
+    COR_FUNDO  = '#f9fafb'
+    COR_VERDE  = '#16a34a'
+    COR_CINZA  = '#6b7280'
+    COR_ERRO   = '#dc2626'
+    COR_BORDA  = '#e5e7eb'
 
-    print(f'Agente de impressao rodando em http://localhost:{AGENT_PORT}')
-    print(f'Modo: {PRINTER_MODE.upper()} | {mode_info}')
-    print(f'Endpoints: POST /print  POST /print-nfce  GET /status')
-    print('Pressione Ctrl+C para encerrar.')
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title('Agente de Impressão')
+        self.root.geometry('320x170')
+        self.root.resizable(False, False)
+        self.root.configure(bg=self.COR_FUNDO)
+        self.root.protocol('WM_DELETE_WINDOW', self._on_close)
+
+        # Centraliza na tela
+        self.root.update_idletasks()
+        w = self.root.winfo_width()
+        h = self.root.winfo_height()
+        x = (self.root.winfo_screenwidth()  // 2) - (w // 2)
+        y = (self.root.winfo_screenheight() // 2) - (h // 2)
+        self.root.geometry(f'+{x}+{y}')
+
+        self._build()
+
+    def _build(self):
+        pad = {'padx': 20, 'pady': 0}
+
+        # ── Cabeçalho ──
+        header = tk.Frame(self.root, bg='#ffffff', bd=0,
+                          highlightbackground=self.COR_BORDA, highlightthickness=1)
+        header.pack(fill='x')
+
+        tk.Label(header, text='🖨  Agente de Impressão',
+                 bg='#ffffff', font=('Segoe UI', 11, 'bold'),
+                 pady=10).pack(side='left', padx=16)
+
+        # ── Corpo ──
+        body = tk.Frame(self.root, bg=self.COR_FUNDO)
+        body.pack(fill='both', expand=True, padx=20, pady=12)
+
+        # Status: ponto verde + texto
+        row1 = tk.Frame(body, bg=self.COR_FUNDO)
+        row1.pack(anchor='w', pady=(0, 4))
+        self._dot = tk.Label(row1, text='●', fg=self.COR_VERDE,
+                             bg=self.COR_FUNDO, font=('Segoe UI', 13))
+        self._dot.pack(side='left')
+        tk.Label(row1, text=f'  Rodando na porta {AGENT_PORT}',
+                 bg=self.COR_FUNDO, font=('Segoe UI', 10, 'bold')).pack(side='left')
+
+        # Modo
+        if PRINTER_MODE == 'wifi':
+            modo_txt = f'Modo: WiFi → {PRINTER_IP}:{PRINTER_PORT}'
+        elif PRINTER_MODE == 'usb':
+            nome = _find_usb_printer_name() if sys.platform == 'win32' else '—'
+            modo_txt = f'Modo: USB → {nome or "detectando..."}'
+        else:
+            modo_txt = f'Modo: Serial ({SERIAL_BAUD} baud)'
+
+        tk.Label(body, text=modo_txt, bg=self.COR_FUNDO,
+                 fg=self.COR_CINZA, font=('Segoe UI', 9)).pack(anchor='w')
+
+        # Última impressão
+        self._status_var = tk.StringVar(value='Aguardando impressões...')
+        self._status_lbl = tk.Label(body, textvariable=self._status_var,
+                                    bg=self.COR_FUNDO, fg=self.COR_CINZA,
+                                    font=('Segoe UI', 9))
+        self._status_lbl.pack(anchor='w', pady=(2, 0))
+
+        # ── Botões ──
+        btns = tk.Frame(body, bg=self.COR_FUNDO)
+        btns.pack(anchor='w', pady=(12, 0))
+
+        tk.Button(btns, text='Ver status',
+                  command=lambda: webbrowser.open(f'http://localhost:{AGENT_PORT}/status'),
+                  font=('Segoe UI', 9), relief='flat', bd=0,
+                  bg=self.COR_BORDA, activebackground='#d1d5db',
+                  padx=10, pady=4, cursor='hand2'
+                  ).pack(side='left', padx=(0, 8))
+
+        tk.Button(btns, text='Parar agente',
+                  command=self._on_close,
+                  font=('Segoe UI', 9), relief='flat', bd=0,
+                  fg='white', bg=self.COR_ERRO, activebackground='#b91c1c',
+                  padx=10, pady=4, cursor='hand2'
+                  ).pack(side='left')
+
+    def refresh(self):
+        """Chamado pelo handler HTTP após cada impressão (thread-safe via after())."""
+        if _last_error:
+            self._status_var.set(f'✗ Erro: {_last_error[:50]}')
+            self._status_lbl.config(fg=self.COR_ERRO)
+        elif _last_ok:
+            hora = _last_ok.strftime('%H:%M:%S')
+            self._status_var.set(f'✓ {_print_count} cupom{"ns" if _print_count != 1 else ""} impresso{"s" if _print_count != 1 else ""} · último às {hora}')
+            self._status_lbl.config(fg=self.COR_VERDE)
+
+    def _on_close(self):
+        if messagebox.askokcancel('Parar agente', 'Deseja parar o agente de impressão?\n\nO PDV não conseguirá imprimir enquanto o agente estiver fechado.'):
+            self.root.destroy()
+            sys.exit(0)
+
+    def run(self):
+        self.root.mainloop()
+
+
+# ── Inicialização ─────────────────────────────────────────────────────────────
+def _start_server():
     server = HTTPServer(('127.0.0.1', AGENT_PORT), Handler)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print('Encerrado.')
+    server.serve_forever()
 
+def main():
+    global _ui_ref
+
+    # Inicia o servidor HTTP em thread daemon
+    t = threading.Thread(target=_start_server, daemon=True)
+    t.start()
+
+    # Abre a janela (bloqueia aqui até o usuário fechar)
+    ui = AgenteUI()
+    _ui_ref = ui
+    ui.run()
 
 if __name__ == '__main__':
     main()
