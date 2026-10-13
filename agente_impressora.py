@@ -1,36 +1,59 @@
 #!/usr/bin/env python3
 """
-Agente local de impressão — Panificadora v3.0
-Impressora: Golden Sky 80mm WiFi/USB com guilhotina
-Escuta em http://localhost:9100 e envia ESC/POS via WiFi (TCP) ou USB-Serial.
+Agente local de impressão — Panificadora v3.1
+Impressora: Golden Sky 80mm (WiFi/Rede ou USB)
+Escuta em http://localhost:9100 e envia ESC/POS para a impressora.
+
+Modos suportados:
+  wifi   → TCP socket RAW (WiFi ou rede cabeada)
+  usb    → impressora USB instalada no Windows via win32print (RAW)
+  serial → porta COM / USB com chip serial (CH340, CP210x, etc.)
 
 Dependências:
-  pip install pyserial          (só para modo serial)
+  pip install pyserial          (modo serial)
+  pip install pywin32           (modo usb — Windows only)
   pip install pyinstaller       (para gerar .exe)
 
-Gerar .exe:
+Gerar .exe (inclui os dois modos):
+  pip install pyinstaller pyserial pywin32
   pyinstaller --onefile --noconsole agente_impressora.py
 """
 
 import json
 import socket
-import threading
+import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime
 
-# ── Configuração ──────────────────────────────────────────────────────────────
-AGENT_PORT   = 9100          # porta HTTP deste agente (não altere)
-PRINTER_MODE = 'wifi'        # 'wifi' ou 'serial'
+# ═════════════════════════════════════════════════════════════════════════════
+# CONFIGURAÇÃO — edite aqui antes de gerar o .exe
+# ═════════════════════════════════════════════════════════════════════════════
 
-# Modo WiFi — RAW ESC/POS via TCP
-PRINTER_IP   = '192.168.1.100'  # << coloque o IP da impressora na sua rede
-PRINTER_PORT = 9100              # porta RAW da impressora (padrão Golden Sky)
-SOCKET_TIMEOUT = 5               # segundos para timeout de conexão
+AGENT_PORT   = 9100   # porta HTTP deste agente (não altere)
 
-# Modo Serial — USB-Serial (use se preferir cabo USB em vez de WiFi)
-SERIAL_BAUD  = 115200
+PRINTER_MODE = 'usb'  # 'wifi'    → TCP socket (WiFi ou rede)
+                      # 'usb'     → USB Windows via win32print
+                      # 'serial'  → porta COM serial
+
+# Modo WiFi / Rede ─────────────────────────────────────────────────────────
+PRINTER_IP     = '192.168.1.100'  # << IP da impressora na rede
+PRINTER_PORT   = 9100             # porta RAW (padrão Golden Sky rede)
+SOCKET_TIMEOUT = 5                # timeout em segundos
+
+# Modo USB ─────────────────────────────────────────────────────────────────
+# Deixe vazio para detecção automática pelo nome no Windows.
+# Se houver várias impressoras, coloque o nome exato que aparece em
+# Painel de Controle → Dispositivos e Impressoras.
+USB_PRINTER_NAME = ''
+
+# Palavras-chave para auto-detecção da impressora USB/rede no Windows
+_USB_KEYWORDS = ['golden', 'sky', 'pos', 'thermal', '80mm', 'receipt', 'cupom']
+
+# Modo Serial / COM ────────────────────────────────────────────────────────
+SERIAL_BAUD   = 115200
 _COM_KEYWORDS = ['golden', 'sky', 'usb serial', 'ch340', 'cp210', 'ft232', 'prolific', 'cdc']
-# ─────────────────────────────────────────────────────────────────────────────
+
+# ═════════════════════════════════════════════════════════════════════════════
 
 # ESC/POS — compatível com qualquer impressora 80mm
 ESC = b'\x1b'
@@ -44,9 +67,9 @@ BOLD_OFF     = ESC + b'E\x00'
 DOUBLE_ON    = GS  + b'!\x11'
 DOUBLE_OFF   = GS  + b'!\x00'
 FEED         = ESC + b'd\x04'
-CUT          = GS  + b'V\x41\x00'   # corte total (guilhotina)
+CUT          = GS  + b'V\x41\x00'  # corte total (guilhotina)
 
-COLS = 48   # 80mm a 12 dots/char = 48 colunas
+COLS = 48  # 80mm a 12 dots/char = 48 colunas
 
 def line(text=''):
     return str(text).encode('cp850', errors='replace') + b'\n'
@@ -64,6 +87,7 @@ def col2(left, right, width=COLS):
 
 def fmt_currency(value):
     return f'R$ {float(value):.2f}'.replace('.', ',')
+
 
 # ── Cupom comum ───────────────────────────────────────────────────────────────
 def build_receipt(data: dict, nome_empresa: str = 'PANIFICADORA', subtitulo: str = '') -> bytes:
@@ -139,6 +163,7 @@ def build_receipt(data: dict, nome_empresa: str = 'PANIFICADORA', subtitulo: str
     buf += CUT
     return bytes(buf)
 
+
 # ── QR Code ESC/POS ───────────────────────────────────────────────────────────
 def build_qr_escpos(url: str, size: int = 4) -> bytes:
     buf  = bytearray()
@@ -152,6 +177,7 @@ def build_qr_escpos(url: str, size: int = 4) -> bytes:
     buf += b'\x1d\x28\x6b' + bytes([pL, pH]) + b'\x31\x50\x30' + data
     buf += b'\x1d\x28\x6b\x03\x00\x31\x51\x30'
     return bytes(buf)
+
 
 # ── Cupom NFC-e ───────────────────────────────────────────────────────────────
 def build_nfce_receipt(data: dict, nome_empresa: str = 'PANIFICADORA', subtitulo: str = '') -> bytes:
@@ -251,22 +277,82 @@ def build_nfce_receipt(data: dict, nome_empresa: str = 'PANIFICADORA', subtitulo
     buf += CUT
     return bytes(buf)
 
-# ── Envio para a impressora ───────────────────────────────────────────────────
+
+# ── Envio: roteamento por modo ────────────────────────────────────────────────
 def send_to_printer(data: bytes):
     if PRINTER_MODE == 'wifi':
         return _send_wifi(data)
+    elif PRINTER_MODE == 'usb':
+        return _send_usb(data)
     else:
         return _send_serial(data)
+
 
 def _send_wifi(data: bytes):
     try:
         with socket.create_connection((PRINTER_IP, PRINTER_PORT), timeout=SOCKET_TIMEOUT) as s:
             s.sendall(data)
-        return True, f'OK (WiFi {PRINTER_IP}:{PRINTER_PORT})'
+        return True, f'OK (WiFi/Rede {PRINTER_IP}:{PRINTER_PORT})'
     except Exception as e:
         return False, f'Erro WiFi: {e} | IP configurado: {PRINTER_IP}:{PRINTER_PORT}'
 
+
+def _find_usb_printer_name():
+    """Retorna o nome da impressora no Windows, priorizando USB_PRINTER_NAME."""
+    if USB_PRINTER_NAME:
+        return USB_PRINTER_NAME
+    try:
+        import win32print
+        # PRINTER_ENUM_LOCAL lista impressoras locais (USB incluso)
+        printers = [p[2] for p in win32print.EnumPrinters(
+            win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+        )]
+        for name in printers:
+            if any(k in name.lower() for k in _USB_KEYWORDS):
+                return name
+        # fallback: impressora padrão do Windows
+        default = win32print.GetDefaultPrinter()
+        return default if default else (printers[0] if printers else None)
+    except Exception:
+        return None
+
+
+def _send_usb(data: bytes):
+    """Envia ESC/POS via API do Windows (win32print, tipo RAW).
+    Funciona com qualquer impressora USB instalada com driver padrão.
+    """
+    if sys.platform != 'win32':
+        # fora do Windows, tenta serial como fallback
+        return _send_serial(data)
+    try:
+        import win32print
+        printer_name = _find_usb_printer_name()
+        if not printer_name:
+            return False, (
+                'Impressora USB nao encontrada no Windows. '
+                'Instale o driver e verifique em Dispositivos e Impressoras. '
+                'Ou defina USB_PRINTER_NAME no topo do agente.'
+            )
+        hPrinter = win32print.OpenPrinter(printer_name)
+        try:
+            hJob = win32print.StartDocPrinter(hPrinter, 1, ('Cupom', None, 'RAW'))
+            try:
+                win32print.StartPagePrinter(hPrinter)
+                win32print.WritePrinter(hPrinter, data)
+                win32print.EndPagePrinter(hPrinter)
+            finally:
+                win32print.EndDocPrinter(hPrinter)
+        finally:
+            win32print.ClosePrinter(hPrinter)
+        return True, f'OK (USB → {printer_name})'
+    except ImportError:
+        return False, 'pywin32 nao instalado. Execute: pip install pywin32'
+    except Exception as e:
+        return False, f'Erro USB: {e}'
+
+
 def _send_serial(data: bytes):
+    """Envia via porta COM (impressoras com chip USB-Serial: CH340, CP210x, etc.)."""
     try:
         import serial
         import serial.tools.list_ports
@@ -280,13 +366,16 @@ def _send_serial(data: bytes):
         with serial.Serial(com_port, SERIAL_BAUD, timeout=3) as s:
             s.write(data)
         return True, f'OK (Serial {com_port})'
+    except ImportError:
+        return False, 'pyserial nao instalado. Execute: pip install pyserial'
     except Exception as e:
         return False, f'Erro Serial: {e}'
 
-# ── HTTP Handler ─────────────────────────────────────────────────────────────
+
+# ── HTTP Handler ──────────────────────────────────────────────────────────────
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass  # sem log no console
+        pass
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -294,17 +383,25 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == '/status':
-            mode = f'WiFi ({PRINTER_IP}:{PRINTER_PORT})' if PRINTER_MODE == 'wifi' else f'Serial ({SERIAL_BAUD} baud)'
-            resp = json.dumps({'ok': True, 'mode': PRINTER_MODE, 'info': mode}).encode()
-            self.send_response(200)
-            self._cors()
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(resp)
-        else:
+        if self.path != '/status':
             self.send_response(404)
             self.end_headers()
+            return
+
+        if PRINTER_MODE == 'wifi':
+            info = f'WiFi/Rede → {PRINTER_IP}:{PRINTER_PORT}'
+        elif PRINTER_MODE == 'usb':
+            name = _find_usb_printer_name() if sys.platform == 'win32' else 'N/A (nao-Windows)'
+            info = f'USB → {name or "nao detectada"}'
+        else:
+            info = f'Serial → {SERIAL_BAUD} baud'
+
+        resp = json.dumps({'ok': True, 'mode': PRINTER_MODE, 'info': info}).encode()
+        self.send_response(200)
+        self._cors()
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(resp)
 
     def do_POST(self):
         if self.path not in ('/print', '/print-nfce'):
@@ -341,8 +438,16 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
 
+
 def main():
-    mode_info = f'WiFi → {PRINTER_IP}:{PRINTER_PORT}' if PRINTER_MODE == 'wifi' else f'Serial → {SERIAL_BAUD} baud'
+    if PRINTER_MODE == 'wifi':
+        mode_info = f'WiFi/Rede → {PRINTER_IP}:{PRINTER_PORT}'
+    elif PRINTER_MODE == 'usb':
+        name = _find_usb_printer_name() if sys.platform == 'win32' else 'N/A'
+        mode_info = f'USB → {name or "aguardando driver"}'
+    else:
+        mode_info = f'Serial → {SERIAL_BAUD} baud'
+
     print(f'Agente de impressao rodando em http://localhost:{AGENT_PORT}')
     print(f'Modo: {PRINTER_MODE.upper()} | {mode_info}')
     print(f'Endpoints: POST /print  POST /print-nfce  GET /status')
@@ -352,6 +457,7 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         print('Encerrado.')
+
 
 if __name__ == '__main__':
     main()
