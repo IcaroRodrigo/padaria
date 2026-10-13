@@ -49,7 +49,9 @@ SOCKET_TIMEOUT = 5
 
 # Modo USB ─────────────────────────────────────────────────────────────────
 USB_PRINTER_NAME = ''   # vazio = detecta automaticamente
-_USB_KEYWORDS    = ['golden', 'sky', 'pos', 'thermal', '80mm', 'receipt', 'cupom']
+# Palavras-chave para identificar impressoras térmicas (case-insensitive).
+# NÃO inclua 'pos' — é genérico demais e pega drivers quebrados como POS58.
+_USB_KEYWORDS    = ['golden', 'sky', 'xp-80', 'xp80', 'elgin', 'thermal', '80mm', 'receipt', 'cupom']
 
 # Modo Serial / COM ────────────────────────────────────────────────────────
 SERIAL_BAUD   = 115200
@@ -325,27 +327,31 @@ def _list_local_printers():
         return []
 
 def _find_usb_printer_name():
-    """Retorna o nome da impressora USB disponível, ou None se não encontrar."""
-    # Nome explícito tem prioridade — pulamos a detecção automática
+    """Retorna o nome da impressora USB disponível, ou None se não encontrar.
+
+    Regras (em ordem de prioridade):
+    1. USB_PRINTER_NAME definido manualmente → usa sempre esse, sem detecção
+    2. Keyword match em impressoras com status OK
+    3. Primeira impressora disponível (status OK) — nunca usa impressoras excluídas
+    """
     if USB_PRINTER_NAME:
         return USB_PRINTER_NAME
 
     printers = _list_local_printers()
+    ok_printers = [(name, ok) for name, ok in printers if ok]
 
-    # 1ª passagem: keyword + disponível
-    for name, ok in printers:
-        if ok and any(k in name.lower() for k in _USB_KEYWORDS):
-            return name
-    # 2ª passagem: keyword sem checar disponibilidade
-    for name, ok in printers:
+    # Keyword match apenas entre impressoras disponíveis
+    for name, _ in ok_printers:
         if any(k in name.lower() for k in _USB_KEYWORDS):
             return name
-    # 3ª passagem: primeira impressora disponível (sem fallback para GetDefaultPrinter)
-    for name, ok in printers:
-        if ok:
+
+    # Fallback: primeira disponível (ignora PDF, OneNote, Fax — preferindo USB)
+    _skip = ['pdf', 'onenote', 'xps', 'fax', 'microsoft', 'send to']
+    for name, _ in ok_printers:
+        if not any(s in name.lower() for s in _skip):
             return name
 
-    return None  # não encontrou nada utilizável
+    return None
 
 def _send_usb(data: bytes):
     if sys.platform != 'win32':
