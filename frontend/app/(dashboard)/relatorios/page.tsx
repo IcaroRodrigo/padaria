@@ -13,7 +13,7 @@ import {
   PieChart, Pie, Cell,
   ComposedChart, Line, Legend,
 } from 'recharts'
-import { AlertTriangle, CheckCircle2, Clock, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, ChevronDown, ChevronRight, Trash2, ArrowDownCircle } from 'lucide-react'
 import { NfceCaixaButton } from '@/components/fiscal/NfceCaixaButton'
 
 const PAY_COLORS: Record<string, string> = {
@@ -652,10 +652,12 @@ function CashRegisterAudit({ registers }: { registers: any[] }) {
     .filter((r) => r.difference !== null)
     .reduce((s, r) => s + r.difference, 0)
 
+  const totalWithdrawals = registers.reduce((s, r) => s + (r.totalWithdrawals || 0), 0)
+
   return (
     <div className="space-y-4">
       {/* Resumo */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-border p-4">
           <p className="text-xs text-muted-foreground">Caixas no período</p>
           <p className="text-2xl font-bold">{registers.length}</p>
@@ -665,6 +667,12 @@ function CashRegisterAudit({ registers }: { registers: any[] }) {
           <p className="text-2xl font-bold text-amber-500">
             {registers.filter((r) => !r.closedAt).length}
           </p>
+        </div>
+        <div className="bg-white rounded-xl border border-border p-4">
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <ArrowDownCircle size={11} className="text-amber-600" /> Sangrias no período
+          </p>
+          <p className="text-2xl font-bold text-amber-600 money">{formatCurrency(totalWithdrawals)}</p>
         </div>
         <div className="bg-white rounded-xl border border-border p-4">
           <p className="text-xs text-muted-foreground">Diferença acumulada</p>
@@ -685,6 +693,7 @@ function CashRegisterAudit({ registers }: { registers: any[] }) {
               <Th>Fechamento</Th>
               <Th className="text-right">Saldo abertura</Th>
               <Th className="text-right">Vendas (dinheiro)</Th>
+              <Th className="text-right">Sangrias</Th>
               <Th className="text-right">Esperado</Th>
               <Th className="text-right">Contado</Th>
               <Th className="text-right">Diferença</Th>
@@ -703,6 +712,13 @@ function CashRegisterAudit({ registers }: { registers: any[] }) {
                 </Td>
                 <Td className="text-right money">{formatCurrency(r.openingBalance)}</Td>
                 <Td className="text-right money">{formatCurrency(r.cashIn)}</Td>
+                <Td className="text-right">
+                  {r.totalWithdrawals > 0 ? (
+                    <span className="text-amber-700 money font-medium">− {formatCurrency(r.totalWithdrawals)}</span>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </Td>
                 <Td className="text-right money font-medium">{formatCurrency(r.expectedClosing)}</Td>
                 <Td className="text-right money">
                   {r.closingBalance !== null ? formatCurrency(r.closingBalance) : '—'}
