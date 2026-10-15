@@ -16,6 +16,7 @@ import {
   CloseCashRegisterDto,
   CancelSaleDto,
   CorrectSaleItemDto,
+  CreateWithdrawalDto,
 } from './dto/create-sale.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -60,6 +61,23 @@ export class SalesController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     return this.salesService.getCashRegisterProducts(user.empresaId, id);
+  }
+
+  @Post('cash-register/:id/withdrawal')
+  createWithdrawal(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: CreateWithdrawalDto,
+  ) {
+    return this.salesService.createWithdrawal(user.id, user.empresaId, id, dto);
+  }
+
+  @Get('cash-register/:id/withdrawals')
+  getWithdrawals(
+    @CurrentUser() user: any,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.salesService.getWithdrawals(user.empresaId, id);
   }
 
   // Sales

@@ -10,6 +10,7 @@ import {
   CloseCashRegisterDto,
   CancelSaleDto,
   CorrectSaleItemDto,
+  CreateWithdrawalDto,
 } from './dto/create-sale.dto';
 
 @Injectable()
@@ -86,6 +87,10 @@ export class SalesService {
           where: { status: 'COMPLETED' },
           select: { finalAmount: true, paymentMethod: true, payments: { select: { method: true, amount: true } } },
         },
+        withdrawals: {
+          select: { id: true, amount: true, motivo: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
     if (!register) return null;
@@ -95,7 +100,6 @@ export class SalesService {
       0,
     );
 
-    // Breakdown por forma de pagamento
     const byMethod: Record<string, number> = { CASH: 0, PIX: 0, DEBIT: 0, CREDIT: 0, MIXED: 0 };
     for (const sale of register.sales) {
       for (const payment of sale.payments) {
@@ -103,12 +107,51 @@ export class SalesService {
       }
     }
 
+    const totalWithdrawals = register.withdrawals.reduce(
+      (sum, w) => sum + Number(w.amount),
+      0,
+    );
+
     return {
       ...register,
       totalSales,
       salesCount: register.sales.length,
       byMethod,
+      totalWithdrawals,
+      withdrawals: register.withdrawals,
     };
+  }
+
+  async createWithdrawal(userId: number, empresaId: number, cashRegisterId: number, dto: CreateWithdrawalDto) {
+    const register = await this.prisma.cashRegister.findFirst({
+      where: { id: cashRegisterId, userId, empresaId, closedAt: null },
+    });
+    if (!register) {
+      throw new NotFoundException('Caixa não encontrado ou já fechado');
+    }
+
+    return this.prisma.cashWithdrawal.create({
+      data: {
+        cashRegisterId,
+        userId,
+        empresaId,
+        amount: dto.amount,
+        motivo: dto.motivo,
+      },
+    });
+  }
+
+  async getWithdrawals(empresaId: number, cashRegisterId: number) {
+    const register = await this.prisma.cashRegister.findFirst({
+      where: { id: cashRegisterId, empresaId },
+    });
+    if (!register) throw new NotFoundException('Caixa não encontrado');
+
+    return this.prisma.cashWithdrawal.findMany({
+      where: { cashRegisterId, empresaId },
+      include: { user: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
 
@@ -348,6 +391,7 @@ export class SalesService {
             payments: { select: { method: true, amount: true } },
           },
         },
+        withdrawals: { select: { amount: true } },
       },
       orderBy: { openedAt: 'desc' },
     });
@@ -361,7 +405,8 @@ export class SalesService {
         }
       }
       const cashIn = byMethod['CASH'] || 0;
-      const expectedClosing = Number(r.openingBalance) + cashIn;
+      const totalWithdrawals = r.withdrawals.reduce((s, w) => s + Number(w.amount), 0);
+      const expectedClosing = Number(r.openingBalance) + cashIn - totalWithdrawals;
       const difference = r.closingBalance !== null && r.closingBalance !== undefined
         ? Number(r.closingBalance) - expectedClosing
         : null;
@@ -377,6 +422,7 @@ export class SalesService {
         salesCount: r.sales.length,
         cashIn,
         byMethod,
+        totalWithdrawals,
         expectedClosing,
         difference,
       };

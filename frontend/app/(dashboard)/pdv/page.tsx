@@ -13,7 +13,8 @@ import { Cart } from '@/components/sales/Cart'
 import { PaymentPanel } from '@/components/sales/PaymentPanel'
 import { OpenCashRegister } from '@/components/sales/OpenCashRegister'
 import { CloseCashRegister } from '@/components/sales/CloseCashRegister'
-import { Search, User, Scale, LogOut, ShoppingBag, X } from 'lucide-react'
+import { SangriaModal } from '@/components/sales/SangriaModal'
+import { Search, User, Scale, LogOut, ShoppingBag, X, ArrowDownCircle } from 'lucide-react'
 
 export default function PDVPage() {
   const qc = useQueryClient()
@@ -26,6 +27,7 @@ export default function PDVPage() {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false)
   const [scaleNotice, setScaleNotice] = useState<string | null>(null)
   const [showCloseCashRegister, setShowCloseCashRegister] = useState(false)
+  const [showSangria, setShowSangria] = useState(false)
   const [showMobilePayment, setShowMobilePayment] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const { finalAmount } = useCartStore()
@@ -243,13 +245,22 @@ export default function PDVPage() {
             <span>Caixa #{cashRegister.id} aberto</span>
             <span>{cashRegister.salesCount} venda{cashRegister.salesCount !== 1 ? 's' : ''}</span>
             <span className="font-semibold text-success money">{formatCurrency(cashRegister.totalSales || 0)} em vendas</span>
-            <button
-              onClick={() => setShowCloseCashRegister(true)}
-              className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/5 transition text-xs font-medium"
-            >
-              <LogOut size={13} />
-              Fechar caixa
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setShowSangria(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-400/60 text-amber-700 hover:bg-amber-50 transition text-xs font-medium"
+              >
+                <ArrowDownCircle size={13} />
+                Sangria
+              </button>
+              <button
+                onClick={() => setShowCloseCashRegister(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/5 transition text-xs font-medium"
+              >
+                <LogOut size={13} />
+                Fechar caixa
+              </button>
+            </div>
           </div>
         </div>
 
@@ -341,6 +352,19 @@ export default function PDVPage() {
             useCartStore.getState().setCashRegister(undefined)
             qc.invalidateQueries({ queryKey: ['cash-register'] })
           }}
+        />
+      </Modal>
+
+      {/* Sangria modal */}
+      <Modal
+        open={showSangria}
+        onClose={() => setShowSangria(false)}
+        title="Sangria de Caixa"
+        size="sm"
+      >
+        <SangriaModal
+          cashRegisterId={cashRegister.id}
+          onClose={() => setShowSangria(false)}
         />
       </Modal>
 

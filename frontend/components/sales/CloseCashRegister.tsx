@@ -6,8 +6,15 @@ import QRCode from 'qrcode'
 import api from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, FileText, Printer, ExternalLink } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, FileText, Printer, ExternalLink, ArrowDownCircle } from 'lucide-react'
 import type { FiscalNote } from '@/types'
+
+interface CashWithdrawal {
+  id: number
+  amount: number
+  motivo: string
+  createdAt: string
+}
 
 interface CashRegister {
   id: number
@@ -16,6 +23,8 @@ interface CashRegister {
   totalSales: number
   salesCount: number
   byMethod: Record<string, number>
+  totalWithdrawals?: number
+  withdrawals?: CashWithdrawal[]
 }
 
 interface CloseCashRegisterProps {
@@ -44,7 +53,8 @@ export function CloseCashRegister({ cashRegister, onSuccess }: CloseCashRegister
 
   const openingBalance = Number(cashRegister.openingBalance)
   const cashSales = cashRegister.byMethod?.CASH || 0
-  const expectedCash = openingBalance + cashSales
+  const totalWithdrawals = cashRegister.totalWithdrawals || 0
+  const expectedCash = openingBalance + cashSales - totalWithdrawals
   const counted = parseFloat(closingBalance) || 0
   const difference = counted - expectedCash
 
@@ -289,6 +299,15 @@ ${qrDataUrl ? `<div class="qr-block"><img src="${qrDataUrl}" alt="QR Code NFC-e"
               <span className="money">{formatCurrency(amount)}</span>
             </div>
           ))}
+          {totalWithdrawals > 0 && (
+            <div className="flex justify-between text-xs text-amber-700 font-medium">
+              <span className="flex items-center gap-1">
+                <ArrowDownCircle size={11} />
+                Sangrias ({cashRegister.withdrawals?.length ?? 0}x)
+              </span>
+              <span className="money">− {formatCurrency(totalWithdrawals)}</span>
+            </div>
+          )}
         </div>
       </div>
 

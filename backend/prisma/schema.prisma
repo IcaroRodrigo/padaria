@@ -32,6 +32,7 @@ model Empresa {
   settings            Setting[]
   stockEntries        StockEntry[]
   solicitacoes        SolicitacaoAssinatura[]
+  cashWithdrawals     CashWithdrawal[]
 }
 
 model SolicitacaoAssinatura {
@@ -84,8 +85,9 @@ model User {
   empresaId      Int?
   empresa        Empresa?       @relation(fields: [empresaId], references: [id])
   createdAt      DateTime       @default(now())
-  sales          Sale[]
-  cashRegisters  CashRegister[]
+  sales            Sale[]
+  cashRegisters    CashRegister[]
+  cashWithdrawals  CashWithdrawal[]
 }
 
 enum Role {
@@ -185,17 +187,18 @@ model SystemConfig {
 // ─── CAIXA & VENDAS ───────────────────────────────────────────────────────────
 
 model CashRegister {
-  id              Int       @id @default(autoincrement())
+  id              Int                @id @default(autoincrement())
   userId          Int
-  user            User      @relation(fields: [userId], references: [id])
+  user            User               @relation(fields: [userId], references: [id])
   empresaId       Int
-  empresa         Empresa   @relation(fields: [empresaId], references: [id])
-  openedAt        DateTime  @default(now())
+  empresa         Empresa            @relation(fields: [empresaId], references: [id])
+  openedAt        DateTime           @default(now())
   closedAt        DateTime?
-  openingBalance  Decimal   @db.Decimal(10, 2)
-  closingBalance  Decimal?  @db.Decimal(10, 2)
+  openingBalance  Decimal            @db.Decimal(10, 2)
+  closingBalance  Decimal?           @db.Decimal(10, 2)
   sales           Sale[]
   fiscalNotes     FiscalNote[]
+  withdrawals     CashWithdrawal[]
 }
 
 model Sale {
@@ -245,6 +248,21 @@ model SalePayment {
   sale   Sale    @relation(fields: [saleId], references: [id])
   method String
   amount Decimal @db.Decimal(10, 2)
+}
+
+model CashWithdrawal {
+  id             Int          @id @default(autoincrement())
+  cashRegisterId Int
+  cashRegister   CashRegister @relation(fields: [cashRegisterId], references: [id])
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id])
+  empresaId      Int
+  empresa        Empresa      @relation(fields: [empresaId], references: [id])
+  amount         Decimal      @db.Decimal(10, 2)
+  motivo         String       @db.VarChar(255)
+  createdAt      DateTime     @default(now())
+
+  @@map("cash_withdrawals")
 }
 
 // ─── DESPESAS ─────────────────────────────────────────────────────────────────

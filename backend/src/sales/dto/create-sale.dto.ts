@@ -114,3 +114,15 @@ export class CorrectSaleItemDto {
   @IsNumber()
   unitPrice: number;
 }
+
+export class CreateWithdrawalDto {
+  @IsNotEmpty()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  amount: number;
+
+  @IsNotEmpty({ message: 'Motivo é obrigatório' })
+  @IsString()
+  motivo: string;
+}
