@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   ShoppingCart,
   Package,
@@ -146,30 +147,15 @@ export default function LandingPage() {
             </div>
 
             {/* Mockup ilustrativo */}
-            <div className="flex-1 flex items-center justify-center lg:justify-end w-full max-w-sm lg:max-w-none">
-              <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl border border-[#EAD9C3] p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs font-semibold text-[#493329] uppercase tracking-wide">Vendas hoje</span>
-                  <span className="text-xs text-[#6b5a47]">Quinta, 25 set</span>
-                </div>
-                <div className="text-3xl font-bold text-[#2E2925] mb-1">R$ 1.842,50</div>
-                <div className="text-sm text-[#6b5a47] mb-6">47 vendas · ticket médio R$ 39,20</div>
-                <div className="space-y-2.5">
-                  {[
-                    { name: 'Pão Francês (kg)', qty: '18,4 kg', value: 'R$ 312,80' },
-                    { name: 'Bolo de Cenoura', qty: '12 un', value: 'R$ 216,00' },
-                    { name: 'Coxinha', qty: '87 un', value: 'R$ 391,50' },
-                  ].map(item => (
-                    <div key={item.name} className="flex items-center justify-between py-2.5 border-b border-[#EAD9C3] last:border-0">
-                      <div>
-                        <div className="text-sm font-medium text-[#2E2925]">{item.name}</div>
-                        <div className="text-xs text-[#6b5a47]">{item.qty}</div>
-                      </div>
-                      <span className="text-sm font-semibold text-[#B8662D]">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="flex-1 flex items-center justify-center lg:justify-end w-full">
+              <Image
+                src="/macbook-hero.png"
+                alt="Painel da padaria no PadariaGest"
+                width={600}
+                height={400}
+                className="w-full max-w-lg drop-shadow-xl"
+                priority
+              />
             </div>
           </div>
         </div>
